@@ -1,0 +1,70 @@
+ranking,id,name,ign,team,nationality,total_point,a_point,b_point,c_point,d_point
+1,101056,조건희,Beryl,은퇴,대한민국,250,0,250,0,0
+1,101068,김유준,Cypher,T1 Esports Academy,대한민국,250,0,250,0,0
+3,101043,배영준,Sponge,Nongshim RedForce,대한민국,245,0,245,0,0
+3,101065,성태효,Guardian,T1 Esports Academy,대한민국,245,0,245,0,0
+5,101025,이민형,Gumayusi,Hanwha Life Esports,대한민국,235,0,235,0,0
+5,101016,오형석,Career,Dplus KIA,대한민국,235,0,235,0,0
+5,101018,전어진,Raptor,BNK FearX,대한민국,235,0,235,0,0
+5,101027,유환중,Delight,Hanwha Life Esports,대한민국,235,0,235,0,0
+9,101033,곽보성,Bdd,KT Rolster,대한민국,230,0,230,0,0
+9,101005,이주현,Clozer,DN SOOPers,대한민국,230,0,230,0,0
+11,101022,유지명,Daystar,BNK FearX,대한민국,210,0,210,0,0
+11,101052,하승민,Vincenzo,Kiwoom DRX,대한민국,210,0,210,0,0
+13,101029,김건부,Canyon,Gen.G,대한민국,205,0,205,0,0
+13,101059,곽규준,Enosh,DNS Challengers,대한민국,205,0,205,0,0
+15,101041,김태윤,Taeyoon,Nongshim RedForce,대한민국,195,0,195,0,0
+15,101030,정지훈,Chovy,Gen.G,대한민국,195,0,195,0,0
+17,101015,신금재,Smash,Dplus KIA,대한민국,190,0,190,0,0
+17,101012,허수,Showmaker,Dplus KIA,대한민국,190,0,190,0,0
+17,101006,이동주,DuDu,DN SOOPers,대한민국,190,0,190,0,0
+20,101031,주민규,Duro,Gen.G,대한민국,180,0,180,0,0
+20,101061,방문영,DDoiV,DNS Challengers,대한민국,180,0,180,0,0
+22,101049,남궁성훈,Namgung,Hanjin Brion,대한민국,175,0,175,0,0
+23,101028,박재혁,Ruler,Gen.G,대한민국,170,0,170,0,0
+24,101051,김정현,Willer,Kiwoom DRX,대한민국,165,0,165,0,0
+24,101066,김은후,Painter,T1 Esports Academy,대한민국,165,0,165,0,0
+24,101039,황성훈,Kingen,Nongshim RedForce,대한민국,165,0,165,0,0
+27,101048,박진성,Teddy,Hanjin Brion,대한민국,155,0,155,0,0
+27,101042,손시우,Lehends,Nongshim RedForce,대한민국,155,0,155,0,0
+29,101034,김하람,Aiming,KT Rolster,대한민국,145,0,145,0,0
+29,101001,홍창현,Pyosik,DN SOOPers,대한민국,145,0,45,0,100
+31,101067,문정환,Guti,T1 Esports Academy,대한민국,125,0,125,0,0
+31,101019,이대광,VicLa,BNK FearX,대한민국,125,0,125,0,0
+31,101020,남대근,Diable,BNK FearX,대한민국,125,0,125,0,0
+34,101011,김수환,Peyz,T1,대한민국,110,0,110,0,0
+35,101038,장용준,Ghost,KT Rolster,대한민국,105,0,105,0,0
+36,101055,문관빈,Andil,Kiwoom DRX,대한민국,100,0,100,0,0
+37,101040,이예찬,Scout,Nongshim RedForce,대한민국,85,0,85,0,0
+37,101014,최용혁,Lucid,Dplus KIA,대한민국,85,0,85,0,0
+39,101009,류민석,Keria,T1,대한민국,80,0,80,0,0
+39,101047,조우진,Roamer,Hanjin Brion,대한민국,80,0,80,0,0
+41,101024,최우제,Zeus,Hanwha Life Esports,대한민국,75,0,75,0,0
+41,101053,손우현,Ucal,Kiwoom DRX,대한민국,75,0,75,0,0
+43,101058,이태영,Bulldog,LNG Esports,대한민국,70,0,70,0,0
+43,101064,심수현,Haetae,T1 Esports Academy,대한민국,70,0,70,0,0
+45,101021,김형규,Kellin,BNK FearX,대한민국,65,0,65,0,0
+45,101026,김건우,Zeka,Hanwha Life Esports,대한민국,65,0,65,0,0
+47,101037,오동규,Pollu,KT Rolster,대한민국,60,0,60,0,0
+47,101032,김기인,Kiin,Gen.G,대한민국,60,0,60,0,0
+47,101002,김정민,Life,DN SOOPers,대한민국,60,0,60,0,0
+50,101003,서대길,deokdam,DN SOOPers,대한민국,55,0,55,0,0
+51,101004,정윤수,Peter,DN SOOPers,대한민국,50,0,50,0,0
+51,101057,김민철,Berserker,LYON,대한민국,50,0,50,0,0
+53,101007,이상혁,Faker,T1,대한민국,45,0,45,0,0
+53,101046,이상민,Loki,Hanjin Brion,대한민국,45,0,45,0,0
+53,101060,김상혁,Flip,DNS Challengers,대한민국,45,0,45,0,0
+56,101045,김민성,GIDEON,Hanjin Brion,대한민국,40,0,40,0,0
+57,101044,신민제,Casting,Hanjin Brion,대한민국,35,0,35,0,0
+57,101054,정지우,Jiwoo,Kiwoom DRX,대한민국,35,0,35,0,0
+59,101050,이재원,Rich,Kiwoom DRX,대한민국,30,0,30,0,0
+59,101036,문우찬,Cuzz,KT Rolster,대한민국,30,0,30,0,0
+61,101008,문현준,Oner,T1,대한민국,25,0,25,0,0
+61,101063,한정흠,Lancer,DNS Challengers,대한민국,25,0,25,0,0
+61,101023,서진혁,Kanavi,Hanwha Life Esports,대한민국,25,0,25,0,0
+64,101017,송현민,Clear,BNK FearX,대한민국,20,0,20,0,0
+64,101069,문현호,Cloud,T1 Esports Academy,대한민국,20,0,20,0,0
+66,101013,전시우,Siwoo,Dplus KIA,대한민국,15,0,15,0,0
+67,101035,이승민,PerfecT,KT Rolster,대한민국,10,0,10,0,0
+67,101010,최현준,Doran,T1,대한민국,10,0,10,0,0
+67,101062,손정환,Quantum,DNS Challengers,대한민국,10,0,10,0,0
