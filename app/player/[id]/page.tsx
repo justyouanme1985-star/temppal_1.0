@@ -387,6 +387,7 @@ export default function PlayerPage({
     const targetY = parseInt(saved, 10);
     let attempts = 0;
     function tryScroll() {
+      if (!container) return;
       attempts++;
       if (container.scrollHeight <= targetY && attempts < 50) {
         requestAnimationFrame(tryScroll);

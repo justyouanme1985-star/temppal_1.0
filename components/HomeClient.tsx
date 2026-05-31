@@ -156,6 +156,7 @@ export default function HomeClient({
     history.scrollRestoration = "manual";
     let attempts = 0;
     function tryScroll() {
+      if (!container) return;
       attempts++;
       // Keep trying until content is tall enough (max 50 frames ≈ 800ms)
       if (container.scrollHeight <= targetY && attempts < 50) {
