@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,7 +48,26 @@ function PlayerSection({
   href: string;
   players: Player[];
 }) {
+  const storageKey = `homepage_visibleCount_${title}`;
   const [visibleCount, setVisibleCount] = useState(5);
+
+  // On mount, restore expanded count from previous session
+  useEffect(() => {
+    const saved = sessionStorage.getItem(storageKey);
+    if (saved) setVisibleCount(parseInt(saved, 10));
+  }, [storageKey]);
+
+  // Persist visibleCount on user interaction only (skip initial mount to avoid
+  // overwriting the saved value with the default 5 before the restore runs)
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    sessionStorage.setItem(storageKey, String(visibleCount));
+  }, [visibleCount, storageKey]);
+
   const visible = players.slice(0, visibleCount);
 
   return (
@@ -122,6 +141,56 @@ export default function HomeClient({
   useEffect(() => {
     queryClient.setQueryData(playerKeys.lists(), initialPlayers);
   }, [initialPlayers, queryClient]);
+
+  // ── Scroll save / restore (uses the single layout scroll container) ──
+  function getScrollContainer(): HTMLElement | null {
+    return document.getElementById("main-scroll");
+  }
+
+  function restoreScroll() {
+    const saved = sessionStorage.getItem("homepage_scrollY");
+    if (!saved) return;
+    const targetY = parseInt(saved, 10);
+    const container = getScrollContainer();
+    if (!container) return;
+    history.scrollRestoration = "manual";
+    let attempts = 0;
+    function tryScroll() {
+      attempts++;
+      // Keep trying until content is tall enough (max 50 frames ≈ 800ms)
+      if (container.scrollHeight <= targetY && attempts < 50) {
+        requestAnimationFrame(tryScroll);
+        return;
+      }
+      container.scrollTo(0, targetY);
+    }
+    requestAnimationFrame(tryScroll);
+  }
+
+  const [navCount, setNavCount] = useState(0);
+  useEffect(() => {
+    function saveScroll() {
+      const container = getScrollContainer();
+      if (container) {
+        sessionStorage.setItem("homepage_scrollY", String(container.scrollTop));
+      }
+    }
+    function onPopState() {
+      history.scrollRestoration = "manual";
+      setNavCount((c) => c + 1);
+    }
+    document.addEventListener("mousedown", saveScroll);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      document.removeEventListener("mousedown", saveScroll);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    restoreScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCount]);
 
   const lolPlayers = initialPlayers.filter((p) => p.game === "lol");
   const valPlayers = initialPlayers.filter((p) => p.game === "valorant");

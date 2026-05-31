@@ -275,13 +275,30 @@ export async function getPlayerById(id: string): Promise<Player | undefined> {
   return mapRawToPlayer(data);
 }
 
-/** Find all players who use a specific equipment name */
+/** Normalize an equipment name for fuzzy comparison */
+function normalizeEquipName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[\s-]+/g, ' ')
+    .replace(/[®™©]/g, '')
+    .trim();
+}
+
+/** Find all players who use a specific equipment name (fuzzy match) */
 export async function getPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   const all = await getAllPlayers();
-  return all.filter((p) =>
-    p.equipment.some((e) => e.equipmentName === equipmentName) ||
-    p.previousEquipment.some((e) => e.equipmentName === equipmentName)
-  );
+  const normQuery = normalizeEquipName(equipmentName);
+
+  return all.filter((p) => {
+    const allEquip = [...p.equipment, ...p.previousEquipment];
+    return allEquip.some((e) => {
+      const normName = normalizeEquipName(e.equipmentName);
+      // Prefer exact match, fall back to substring match
+      if (normName === normQuery) return true;
+      if (normName.includes(normQuery) || normQuery.includes(normName)) return true;
+      return false;
+    });
+  });
 }
 
 export async function getAllPlayers(): Promise<Player[]> {
@@ -323,47 +340,9 @@ export async function getRecentlyUpdatedPlayers(): Promise<RecentlyUpdatedPlayer
 }
 export async function searchPlayers(query: string): Promise<Player[]> {
   if (!query.trim()) return [];
-  const supabase = createSupabaseClient();
-
-  const { data, error } = await supabase
-    .from('gamers_info')
-    .select('*')
-    .or(
-      `ign.ilike.%${query}%,` +
-      `name.ilike.%${query}%,` +
-      `team.ilike.%${query}%,` +
-      `collected_words.cs.{${query}}`
-    )
-    .limit(20);
-
-  if (error) {
-    console.error("Search error:", error);
-    return [];
-  }
-
-  return Promise.all((data || []).map(async (raw: RawPlayer) => {
-    const image = await getPlayerImageFor(raw);
-    const equipment = await buildEquipment(raw);
-    return {
-      id: raw.ign.toLowerCase(),
-      dbId: raw.id,
-      team: raw.team,
-      teamLogo: teamLogos[raw.team] || "",
-      playerName: raw.ign,
-      playerRealName: raw.name,
-      nationality: `🇰🇷 ${raw.nationality}`,
-      playerImage: image,
-      equipment,
-      previousEquipment: [],
-      game: raw.game,
-      profession: raw.profession,
-      position: raw.position,
-      popularityRank: raw.admin_power_ranking ?? 0,
-      rankChange: (raw.previous_admin_power_ranking ?? 0) - (raw.admin_power_ranking ?? 0),
-      clickCount: raw.count_player_cumulative ?? 0,
-      powerRanking: raw.admin_power_ranking ?? undefined,
-      powerScore: raw.total_weighted_points ?? 0,
-      collectedWords: raw.collected_words || undefined,
-    } as Player;
-  }));
+  const { matchesQuery } = await import("@/lib/koreanSearch");
+  const all = await getAllPlayers();
+  return all.filter((p) =>
+    matchesQuery(query, p.playerName, p.playerRealName, p.team, p.collectedWords)
+  );
 }

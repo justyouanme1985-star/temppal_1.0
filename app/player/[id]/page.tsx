@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
@@ -306,35 +306,35 @@ function EquipmentCard({
         {/* Action Buttons */}
         <div className="flex gap-2 mt-auto pt-3">
           {spec && spec.officialUrl && (
-            <a
-              href={spec.officialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleEquipmentBtnClick();
+                window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
               }}
-              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors"
+              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
             >
               <ExternalLink className="w-3 h-3" />
               공식사이트
-            </a>
+            </button>
           )}
-          <a
-            href={`https://www.coupang.com/np/search?component=&q=${encodeURIComponent(
-              spec ? `${spec.brand} ${spec.model}` : name,
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             onClick={(e) => {
               e.stopPropagation();
               handleEquipmentBtnClick();
+              window.open(
+                `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(
+                  spec ? `${spec.brand} ${spec.model}` : name,
+                )}`,
+                "_blank",
+                "noopener,noreferrer",
+              );
             }}
-            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer"
           >
             <ShoppingCart className="w-3 h-3" />
             득템
-          </a>
+          </button>
         </div>
       </div>
     </Link>
@@ -348,6 +348,8 @@ const gameNames: Record<string, string> = {
   battlegrounds: "배틀그라운드",
 };
 
+const SCROLL_STORAGE_KEY = "playerpage_scrollY";
+
 export default function PlayerPage({
   params,
 }: {
@@ -355,6 +357,46 @@ export default function PlayerPage({
 }) {
   const { id } = use(params);
   const { data: player, isLoading } = usePlayerById(id);
+
+  // ── Scroll save / restore (uses the single layout scroll container) ──
+  const [navCount, setNavCount] = useState(0);
+  useEffect(() => {
+    function saveScroll() {
+      const container = document.getElementById("main-scroll");
+      if (container) {
+        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(container.scrollTop));
+      }
+    }
+    function onPopState() {
+      history.scrollRestoration = "manual";
+      setNavCount((c) => c + 1);
+    }
+    document.addEventListener("mousedown", saveScroll);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      document.removeEventListener("mousedown", saveScroll);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+    const container = document.getElementById("main-scroll");
+    if (!saved || !container) return;
+    history.scrollRestoration = "manual";
+    const targetY = parseInt(saved, 10);
+    let attempts = 0;
+    function tryScroll() {
+      attempts++;
+      if (container.scrollHeight <= targetY && attempts < 50) {
+        requestAnimationFrame(tryScroll);
+        return;
+      }
+      container.scrollTo(0, targetY);
+    }
+    requestAnimationFrame(tryScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCount]);
 
   if (isLoading) {
     return (
@@ -370,13 +412,17 @@ export default function PlayerPage({
     <div className="flex-1 overflow-y-auto pb-1.5">
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Back Button */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 mb-6 transition-colors"
+        <button
+          onClick={() =>
+            window.history.length > 1
+              ? window.history.back()
+              : (window.location.href = "/")
+          }
+          className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           돌아가기
-        </Link>
+        </button>
 
         {/* Player Profile Section */}
         <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-6 mb-6">

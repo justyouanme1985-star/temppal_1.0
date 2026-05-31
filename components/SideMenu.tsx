@@ -124,20 +124,27 @@ export default function SideMenu() {
                 <div className="border-t border-zinc-200 dark:border-zinc-700 my-4" />
 
                 <div className="flex flex-col gap-1">
-                  <Link
-                    href="/"
-                    onClick={() => setIsOpen(false)}
-                    className="px-3 py-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium"
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      sessionStorage.removeItem("homepage_scrollY");
+                      window.location.href = "/";
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium cursor-pointer"
                   >
                     홈
-                  </Link>
-                  <Link
-                    href="/equipment"
-                    onClick={() => setIsOpen(false)}
-                    className="px-3 py-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-900 transition-colors dark:text-zinc-300 text-sm font-medium"
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      sessionStorage.removeItem("equip_ranking_scrollY");
+                      sessionStorage.removeItem("equip_visibleRows");
+                      window.location.href = "/equipment";
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-900 transition-colors dark:text-zinc-300 text-sm font-medium cursor-pointer"
                   >
                     인기 장비 랭킹
-                  </Link>
+                  </button>
                   <a
                     href="#"
                     className="px-3 py-2.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium"

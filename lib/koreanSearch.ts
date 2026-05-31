@@ -4,7 +4,6 @@ const CHOSUNG_LIST = [
   "ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ",
 ];
 
-// Korean to English keyboard mapping (두벌식 → QWERTY)
 const KO_TO_EN: Record<string, string> = {
   "ㅂ": "q", "ㅈ": "w", "ㄷ": "e", "ㄱ": "r", "ㅅ": "t",
   "ㅛ": "y", "ㅕ": "u", "ㅑ": "i", "ㅐ": "o", "ㅔ": "p",
@@ -16,7 +15,6 @@ const KO_TO_EN: Record<string, string> = {
   "ㅒ": "O", "ㅖ": "P",
 };
 
-// Full Korean syllable decomposition
 const JUNGSUNG_LIST = [
   "ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ",
   "ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ",
@@ -59,7 +57,6 @@ function getChosung(str: string): string {
   }).join("");
 }
 
-// Convert Korean jamo input to English QWERTY equivalent
 function koToEn(str: string): string {
   const decomposed = decomposeString(str);
   return decomposed.split("").map((ch) => KO_TO_EN[ch] || ch).join("").toLowerCase();
@@ -69,7 +66,7 @@ function isKorean(str: string): boolean {
   return /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(str);
 }
 
-function isChosungOnly(str: string): boolean {
+export function isChosungOnly(str: string): boolean {
   return /^[ㄱ-ㅎ]+$/.test(str);
 }
 
@@ -84,52 +81,58 @@ export function matchesQuery(
   const q = query.toLowerCase().trim();
   if (!q) return false;
 
-  const name = playerName.toLowerCase();
-  const real = realName.toLowerCase();
-  const tm = team.toLowerCase();
+  const name = (playerName ?? "").toLowerCase();
+  const real = (realName ?? "").toLowerCase();
+  const tm = (team ?? "").toLowerCase();
 
-  // Direct substring match
+  // 직접 부분 문자열 매칭
   if (name.includes(q) || real.includes(q) || tm.includes(q)) return true;
 
-  // Search collected_words (nicknames / aliases)
+  // collected_words 매칭
   if (collectedWords && collectedWords.length > 0) {
     for (const w of collectedWords) {
-      const lower = w.toLowerCase();
-      if (lower.includes(q)) return true;
-      // chosung match on collected words
-      if (isKorean(q) && isChosungOnly(q)) {
-        const wChosung = getChosung(w);
-        if (wChosung.startsWith(q)) return true;
-      }
+      if (w.toLowerCase().includes(q)) return true;
     }
   }
 
-  if (isKorean(query)) {
-    // Chosung-only matching (e.g. ㅍㅇㅋ matching 페이커)
-    if (isChosungOnly(query)) {
+  if (isKorean(q)) {
+    // 초성 매칭 (ㅍ → 페이커, ㅍㅇㅋ → 페이커)
+    if (isChosungOnly(q)) {
       const nameChosung = getChosung(realName);
-      if (nameChosung.startsWith(query)) return true;
-      const teamChosung = getChosung(team);
-      if (teamChosung.startsWith(query)) return true;
+      if (nameChosung.startsWith(q) || nameChosung.includes(q)) return true;
+
+      const teamChosung = getChosung(tm);
+      if (teamChosung.startsWith(q) || teamChosung.includes(q)) return true;
+
+      if (collectedWords) {
+        for (const w of collectedWords) {
+          const wChosung = getChosung(w);
+          if (wChosung.startsWith(q) || wChosung.includes(q)) return true;
+        }
+      }
     }
 
-    // Korean decomposed matching (partial syllable matching)
-    const decomposedQuery = decomposeString(query);
+    // 한글 분해 매칭 (페이 → 페이커)
+    const decomposedQuery = decomposeString(q);
     const decomposedReal = decomposeString(realName);
+    const decomposedTm = decomposeString(tm);
     if (decomposedReal.includes(decomposedQuery)) return true;
+    if (decomposedTm.includes(decomposedQuery)) return true;
 
-    // Korean keyboard → English conversion (e.g. typing ㄹ치 → faker typed with Korean IME)
-    const converted = koToEn(query);
+    if (collectedWords) {
+      for (const w of collectedWords) {
+        if (decomposeString(w).includes(decomposedQuery)) return true;
+      }
+    }
+
+    // 한글 → 영문 변환 매칭
+    const converted = koToEn(q);
     if (converted && name.includes(converted)) return true;
   }
 
   return false;
 }
 
-/**
- * Score how well a query matches a player. Higher = better match.
- * Used to sort search results so the best match is on top.
- */
 export function scoreQuery(
   query: string,
   playerName: string,
@@ -141,62 +144,76 @@ export function scoreQuery(
   const q = query.toLowerCase().trim();
   if (!q) return 0;
 
-  const name = playerName.toLowerCase();
-  const real = realName.toLowerCase();
-  const tm = team.toLowerCase();
+  const name = (playerName ?? "").toLowerCase();
+  const real = (realName ?? "").toLowerCase();
+  const tm = (team ?? "").toLowerCase();
   let score = 0;
 
-  // Exact match on IGN — highest priority
-  if (name === q) score += 1000;
-  // Exact match on real name
-  else if (real === q) score += 900;
+  // IGN 정확히 일치 — 최우선
+  if (name === q) score += 2000;
+  // 실명 정확히 일치
+  else if (real === q) score += 1900;
 
-  // Partial match on IGN (substring)
+  // IGN 부분 일치
   if (name.includes(q)) score += 200 + (q.length / name.length) * 100;
-  // Partial match on real name
+  // 실명 부분 일치
   if (real.includes(q)) score += 150 + (q.length / real.length) * 80;
-  // Partial match on team
+  // 팀명 부분 일치
   if (tm.includes(q)) score += 50 + (q.length / tm.length) * 30;
 
-  // Match in collected_words (nicknames / aliases)
+  // collected_words 매칭
   if (collectedWords && collectedWords.length > 0) {
     for (const w of collectedWords) {
       const lower = w.toLowerCase();
-      if (lower === q) score += 300;
+      // 정확히 일치 → 자동 이동 확정 (2000점)
+      if (lower === q) score += 2000;
       else if (lower.includes(q)) score += 100 + (q.length / lower.length) * 50;
-      else if (isKorean(q) && isChosungOnly(q)) {
-        const wChosung = getChosung(w);
-        if (wChosung.startsWith(q)) score += 60;
-      }
     }
   }
 
-  if (isKorean(query)) {
-    // Chosung match
-    if (isChosungOnly(query)) {
+  if (isKorean(q)) {
+    // 초성 매칭 — 낮은 점수 (자동 이동 안 되게)
+    if (isChosungOnly(q)) {
       const nameChosung = getChosung(realName);
-      if (nameChosung === q) score += 200;
-      else if (nameChosung.startsWith(q)) score += 100;
-      const teamChosung = getChosung(team);
-      if (teamChosung.startsWith(q)) score += 30;
+      if (nameChosung === q) score += 150;
+      else if (nameChosung.startsWith(q)) score += 80;
+      else if (nameChosung.includes(q)) score += 40;
+
+      const teamChosung = getChosung(tm);
+      if (teamChosung.startsWith(q)) score += 20;
+      else if (teamChosung.includes(q)) score += 10;
+
+      if (collectedWords) {
+        for (const w of collectedWords) {
+          const wChosung = getChosung(w);
+          if (wChosung.startsWith(q)) score += 60;
+          else if (wChosung.includes(q)) score += 30;
+        }
+      }
     }
 
-    // Korean decomposed match
-    const decomposedQuery = decomposeString(query);
+    // 한글 분해 매칭
+    const decomposedQuery = decomposeString(q);
     const decomposedReal = decomposeString(realName);
     if (decomposedReal.includes(decomposedQuery)) {
       score += 80 + (decomposedQuery.length / decomposedReal.length) * 40;
     }
 
-    // Korean keyboard → English conversion match
-    const converted = koToEn(query);
-    if (converted) {
-      if (name.includes(converted)) score += 120 + (converted.length / name.length) * 60;
+    if (collectedWords) {
+      for (const w of collectedWords) {
+        if (decomposeString(w).includes(decomposedQuery)) {
+          score += 60;
+        }
+      }
+    }
+
+    // 한글 → 영문 변환 매칭
+    const converted = koToEn(q);
+    if (converted && name.includes(converted)) {
+      score += 120 + (converted.length / name.length) * 60;
     }
   }
 
-  // Bonus: longer query matching against longer fields is better
-  score += q.length; // slight preference for longer queries
-
+  score += q.length;
   return Math.round(score);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
@@ -34,7 +34,7 @@ const categoryIcons: Record<string, string> = {
   mousepad: "⬜",
   monitor: "🖥️",
   chair: "🪑",
-  desk: "💻",
+  desk: "🪵",
 };
 
 interface EquipmentRankItem {
@@ -55,12 +55,33 @@ interface EquipmentRankItem {
   bpoint: number;
   total_points: number;
   popularity_rank: number;
+  playerCount: number;
 }
 
 export default function EquipmentRankingPage() {
   const [equipments, setEquipments] = useState<EquipmentRankItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
+
+  // Restore visibleRows on mount (avoids hydration mismatch)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("equip_visibleRows");
+      if (saved) setVisibleRows(JSON.parse(saved));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist visibleRows whenever it changes
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    sessionStorage.setItem("equip_visibleRows", JSON.stringify(visibleRows));
+  }, [visibleRows]);
 
   // Items per row (matches grid cols: 5 on xl)
   const ITEMS_PER_ROW = 5;
@@ -72,35 +93,109 @@ export default function EquipmentRankingPage() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       );
-      const { data } = await supabase
-        .from("equipment_info")
-        .select(
-          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl",
-        )
-        .order("category", { ascending: true })
-        .order("id", { ascending: true });
+      // Fetch equipment info and player counts in parallel
+      const [equipRes, playerCountRes] = await Promise.all([
+        supabase
+          .from("equipment_info")
+          .select(
+            "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl",
+          )
+          .order("category", { ascending: true })
+          .order("id", { ascending: true }),
+        supabase
+          .from("gamers_info")
+          .select(
+            "mouse, keyboard, headset, monitor, mousepad, chair, desk, previous_mouse, previous_keyboard, previous_mousepad",
+          ),
+      ]);
 
+      // Count how many players use each equipment key (fuzzy match)
+      const playerCountMap = new Map<string, string[]>();
+      for (const g of playerCountRes.data || []) {
+        const fields = [
+          g.mouse,
+          g.keyboard,
+          g.headset,
+          g.monitor,
+          g.mousepad,
+          g.chair,
+          g.desk,
+          g.previous_mouse,
+          g.previous_keyboard,
+          g.previous_mousepad,
+        ];
+        const seen = new Set<string>();
+        for (const name of fields) {
+          if (!name || seen.has(name)) continue;
+          seen.add(name);
+          const norm = name
+            .toLowerCase()
+            .replace(/[\s-]+/g, " ")
+            .replace(/[®™©]/g, "")
+            .trim();
+          // Index by the first 4 significant words for faster lookup
+          const words = norm.split(" ").filter(Boolean);
+          for (let i = 0; i < words.length; i++) {
+            const prefix = words.slice(0, i + 1).join(" ");
+            if (!playerCountMap.has(prefix)) {
+              playerCountMap.set(prefix, []);
+            }
+            playerCountMap.get(prefix)!.push(name);
+          }
+        }
+      }
+
+      // Normalize helper for comparison
+      function normName(s: string): string {
+        return s
+          .toLowerCase()
+          .replace(/[\s-]+/g, " ")
+          .replace(/[®™©]/g, "")
+          .trim();
+      }
+
+      const data = equipRes.data;
       if (mounted && data) {
-        const items: EquipmentRankItem[] = data.map((d: any) => ({
-          id: d.id,
-          key: d.key,
-          brand: d.brand,
-          model: d.model,
-          category: d.category,
-          officialUrl: d.officialUrl,
-          weight: d.weight,
-          connection: d.connection,
-          size: d.size,
-          maxSpeed: d.maXSpeed,
-          dpi: d.dpi,
-          count_items_recent: d.count_items_recent ?? 0,
-          count_items_cumulative: d.count_items_cumulative ?? 0,
-          apoint: (d.count_items_recent ?? 0) * 3,
-          bpoint: d.count_items_cumulative ?? 0,
-          total_points:
-            (d.count_items_recent ?? 0) * 3 + (d.count_items_cumulative ?? 0),
-          popularity_rank: 0,
-        }));
+        const items: EquipmentRankItem[] = data.map((d: any) => {
+          const normKey = normName(d.key || "");
+          // Find matching player names via fuzzy prefix
+          const words = normKey.split(" ").filter(Boolean);
+          const keyPrefix = words.slice(0, Math.min(words.length, 3)).join(" ");
+          const candidates = playerCountMap.get(keyPrefix) || [];
+          const matchedPlayers = new Set<string>();
+          for (const playerName of candidates) {
+            const pn = normName(playerName);
+            if (
+              pn === normKey ||
+              pn.includes(normKey) ||
+              normKey.includes(pn)
+            ) {
+              matchedPlayers.add(playerName);
+            }
+          }
+          const playerCount = matchedPlayers.size;
+          return {
+            id: d.id,
+            key: d.key,
+            brand: d.brand,
+            model: d.model,
+            category: d.category,
+            officialUrl: d.officialUrl,
+            weight: d.weight,
+            connection: d.connection,
+            size: d.size,
+            maxSpeed: d.maXSpeed,
+            dpi: d.dpi,
+            count_items_recent: d.count_items_recent ?? 0,
+            count_items_cumulative: d.count_items_cumulative ?? 0,
+            apoint: (d.count_items_recent ?? 0) * 3,
+            bpoint: d.count_items_cumulative ?? 0,
+            total_points:
+              (d.count_items_recent ?? 0) * 3 + (d.count_items_cumulative ?? 0),
+            popularity_rank: 0,
+            playerCount,
+          };
+        });
         // Sort into per-category ranks
         const cats = [...new Set(items.map((i) => i.category))];
         for (const cat of cats) {
@@ -132,6 +227,49 @@ export default function EquipmentRankingPage() {
     {} as Record<string, EquipmentRankItem[]>,
   );
 
+  // ── Scroll save / restore (uses the single layout scroll container) ──
+  const [navCount, setNavCount] = useState(0);
+  useEffect(() => {
+    function saveScroll() {
+      const container = document.getElementById("main-scroll");
+      if (container) {
+        sessionStorage.setItem(
+          "equip_ranking_scrollY",
+          String(container.scrollTop),
+        );
+      }
+    }
+    function onPopState() {
+      history.scrollRestoration = "manual";
+      setNavCount((c) => c + 1);
+    }
+    document.addEventListener("mousedown", saveScroll);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      document.removeEventListener("mousedown", saveScroll);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("equip_ranking_scrollY");
+    const container = document.getElementById("main-scroll");
+    if (!saved || !container) return;
+    history.scrollRestoration = "manual";
+    const targetY = parseInt(saved, 10);
+    let attempts = 0;
+    function tryScroll() {
+      attempts++;
+      if (container.scrollHeight <= targetY && attempts < 50) {
+        requestAnimationFrame(tryScroll);
+        return;
+      }
+      container.scrollTo(0, targetY);
+    }
+    requestAnimationFrame(tryScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCount]);
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-zinc-500 dark:text-zinc-400">
@@ -141,77 +279,75 @@ export default function EquipmentRankingPage() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto pb-1.5">
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-white mb-4">
-          인기 장비 랭킹
-        </h1>
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <h1 className="text-xl font-bold text-zinc-900 dark:text-white mb-4 text-center">
+        인기 장비 랭킹
+      </h1>
 
-        {/* Category Navigation Icons */}
-        <div className="flex items-stretch gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-          {categoryOrder.map((cat) => {
-            const items = groupedByCategory[cat] || [];
-            if (items.length === 0) return null;
-            return (
-              <a
-                key={cat}
-                href={`#cat-${cat}`}
-                className="flex flex-col items-center justify-center gap-0.5 shrink-0 w-14 h-14 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors no-underline"
-              >
-                <span className="text-base leading-none">
-                  {categoryIcons[cat] || "📦"}
-                </span>
-                <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                  {typeLabelMap[cat] || cat}
-                </span>
-              </a>
-            );
-          })}
-        </div>
-
+      {/* Category Navigation Icons */}
+      <div className="flex items-stretch justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
         {categoryOrder.map((cat) => {
           const items = groupedByCategory[cat] || [];
           if (items.length === 0) return null;
-
-          const rowsToShow = visibleRows[cat] ?? 2;
-          const visibleItems = items.slice(0, rowsToShow * ITEMS_PER_ROW);
-          const hasMore = visibleItems.length < items.length;
-
           return (
-            <section key={cat} id={`cat-${cat}`} className="mb-10 scroll-mt-20">
-              <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 mb-3 flex items-center gap-2">
-                <span className="w-1 h-4 bg-blue-500 rounded-full" />
+            <a
+              key={cat}
+              href={`#cat-${cat}`}
+              className="flex flex-col items-center justify-center gap-0.5 shrink-0 w-14 h-14 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors no-underline"
+            >
+              <span className="text-base leading-none">
+                {categoryIcons[cat] || "📦"}
+              </span>
+              <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
                 {typeLabelMap[cat] || cat}
-                <span className="text-xs font-normal text-zinc-400 dark:text-zinc-500">
-                  ({items.length})
-                </span>
-              </h2>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {visibleItems.map((item) => (
-                  <EquipmentRankCard key={item.id} item={item} />
-                ))}
-              </div>
-
-              {hasMore && (
-                <div className="flex justify-center mt-3">
-                  <button
-                    onClick={() =>
-                      setVisibleRows((prev) => ({
-                        ...prev,
-                        [cat]: (prev[cat] ?? 2) + 2,
-                      }))
-                    }
-                    className="flex items-center gap-1 px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                  >
-                    더보기 <ChevronDown className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </section>
+              </span>
+            </a>
           );
         })}
       </div>
+
+      {categoryOrder.map((cat) => {
+        const items = groupedByCategory[cat] || [];
+        if (items.length === 0) return null;
+
+        const rowsToShow = visibleRows[cat] ?? 2;
+        const visibleItems = items.slice(0, rowsToShow * ITEMS_PER_ROW);
+        const hasMore = visibleItems.length < items.length;
+
+        return (
+          <section key={cat} id={`cat-${cat}`} className="mb-10 scroll-mt-20">
+            <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 mb-3 flex items-center gap-2">
+              <span className="w-1 h-4 bg-blue-500 rounded-full" />
+              {typeLabelMap[cat] || cat}
+              <span className="text-xs font-normal text-zinc-400 dark:text-zinc-500">
+                ({items.length})
+              </span>
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              {visibleItems.map((item) => (
+                <EquipmentRankCard key={item.id} item={item} />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div className="flex justify-center mt-3">
+                <button
+                  onClick={() =>
+                    setVisibleRows((prev) => ({
+                      ...prev,
+                      [cat]: (prev[cat] ?? 2) + 2,
+                    }))
+                  }
+                  className="flex items-center gap-1 px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  더보기 <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -308,30 +444,38 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
               });
           })()}
         </div>
+        {/* Player Count */}
+        <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+          사용중인 선수 : {item.playerCount}명
+        </div>
         {/* Action Buttons */}
         <div className="flex gap-1.5 mt-auto pt-1">
           {item.officialUrl && (
-            <a
-              href={item.officialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors no-underline"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(item.officialUrl, "_blank", "noopener,noreferrer");
+              }}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors cursor-pointer"
             >
               <ExternalLink className="w-2.5 h-2.5" />
               공식사이트
-            </a>
+            </button>
           )}
-          <a
-            href={`https://www.coupang.com/np/search?component=&q=${encodeURIComponent(item.key)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors no-underline"
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(
+                `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(item.key)}`,
+                "_blank",
+                "noopener,noreferrer",
+              );
+            }}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer"
           >
             <ShoppingCart className="w-2.5 h-2.5" />
             득템
-          </a>
+          </button>
         </div>
       </div>
     </Link>

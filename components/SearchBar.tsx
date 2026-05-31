@@ -17,6 +17,7 @@ export default function SearchBar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isComposingRef = useRef(false);
   const router = useRouter();
 
   const search = useCallback(async (q: string) => {
@@ -76,7 +77,11 @@ export default function SearchBar() {
   };
 
   const handleSubmit = () => {
+    // Cancel any pending debounced search so it doesn't fire after navigation
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
     const trimmed = query.trim();
+    console.log("submit query:", trimmed);
     if (!trimmed) return;
 
     if (selectedIndex >= 0 && results[selectedIndex]) {
@@ -129,7 +134,10 @@ export default function SearchBar() {
       }
     };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   return (
@@ -149,6 +157,15 @@ export default function SearchBar() {
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(e) => {
+                isComposingRef.current = false;
+                const val = e.currentTarget.value;
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                debounceRef.current = setTimeout(() => search(val), 300);
+              }}
               placeholder="검색"
               className={`
                 w-full bg-white dark:bg-zinc-800
@@ -188,18 +205,21 @@ export default function SearchBar() {
                         : "hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
                     }`}
                   >
-                    {player.playerImage ? (
-                      <img
-                        src={player.playerImage}
-                        alt={player.playerName}
-                        loading="lazy"
-                        className="w-8 h-8 rounded-full object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center text-xs font-bold text-zinc-400 shrink-0">
-                        {player.playerName[0]}
-                      </div>
-                    )}
+                    <img
+                      src={
+                        player.playerImage ||
+                        "/images/players/lol/no-picture.webp"
+                      }
+                      alt={player.playerName}
+                      loading="lazy"
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.includes("no-picture.webp")) {
+                          target.src = "/images/players/lol/no-picture.webp";
+                        }
+                      }}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         {player.teamLogo && (

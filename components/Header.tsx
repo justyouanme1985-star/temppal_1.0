@@ -36,8 +36,8 @@ const GAME_BADGE_COLORS: Record<string, string> = {
     "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
+function timeAgo(dateStr: string, now?: number): string {
+  if (!now) return "";
   const then = new Date(dateStr).getTime();
   if (isNaN(then)) return "";
   const diffMs = now - then;
@@ -60,11 +60,17 @@ export default function Header() {
     [],
   );
   const [loadingUpdates, setLoadingUpdates] = useState(false);
+  const [now, setNow] = useState<number>(0); // set only on client to avoid hydration mismatch
   const updatesRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const updatesDropdownRef = useRef<HTMLDivElement>(null);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+
+  // Set current time on client only (avoids Date.now() hydration mismatch)
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   // Fetch recently updated players when dropdown opens
   useEffect(() => {
@@ -130,6 +136,7 @@ export default function Header() {
         <Link
           href="/"
           onClick={(e) => {
+            sessionStorage.removeItem("homepage_scrollY");
             if (pathname === "/") {
               e.preventDefault();
               window.location.href = "/";
@@ -220,7 +227,7 @@ export default function Header() {
                                   {GAME_LABELS[p.game] || p.game}
                                 </span>
                                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto shrink-0">
-                                  {timeAgo(p.updated)}
+                                  {timeAgo(p.updated, now)}
                                 </span>
                               </div>
                             </Link>

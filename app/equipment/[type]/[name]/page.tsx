@@ -39,10 +39,53 @@ export default function EquipmentPage({
     ? Number(resolvedSearchParams.playerId)
     : undefined;
 
+  const [navCount, setNavCount] = useState(0);
   const [spec, setSpec] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [players, setPlayers] = useState<Player[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
+
+  // ── Scroll save / restore (uses the single layout scroll container) ──
+  useEffect(() => {
+    function saveScroll() {
+      const container = document.getElementById("main-scroll");
+      if (container) {
+        sessionStorage.setItem(
+          "equippage_scrollY",
+          String(container.scrollTop),
+        );
+      }
+    }
+    function onPopState() {
+      history.scrollRestoration = "manual";
+      setNavCount((c) => c + 1);
+    }
+    document.addEventListener("mousedown", saveScroll);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      document.removeEventListener("mousedown", saveScroll);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("equippage_scrollY");
+    const container = document.getElementById("main-scroll");
+    if (!saved || !container) return;
+    history.scrollRestoration = "manual";
+    const targetY = parseInt(saved, 10);
+    let attempts = 0;
+    function tryScroll() {
+      attempts++;
+      if (container.scrollHeight <= targetY && attempts < 50) {
+        requestAnimationFrame(tryScroll);
+        return;
+      }
+      container.scrollTo(0, targetY);
+    }
+    requestAnimationFrame(tryScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navCount]);
 
   // Load equipment spec
   useEffect(() => {
@@ -117,13 +160,17 @@ export default function EquipmentPage({
     <div className="flex-1 overflow-y-auto pb-1.5">
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Back Button */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 mb-6 transition-colors"
+        <button
+          onClick={() =>
+            window.history.length > 1
+              ? window.history.back()
+              : (window.location.href = "/")
+          }
+          className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           돌아가기
-        </Link>
+        </button>
 
         {/* Equipment Hero Section */}
         <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden mb-8">

@@ -179,8 +179,9 @@ async function dedupeAndRank(rawPlayers: any[], equipCache: SupabaseEquipCache):
     });
   }
 
-  // Return all players flattened (HomeClient will filter by game)
-  return players;
+  // Return all players flattened in rank order (HomeClient will filter by game)
+  const gameOrder = ['lol', 'valorant', 'battlegrounds', 'starcraft'];
+  return gameOrder.flatMap((game) => byGame[game] || []);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────

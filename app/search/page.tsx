@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo } from "react";
 import { useSearchPlayers } from "@/lib/hooks/usePlayers";
-import { scoreQuery } from "@/lib/koreanSearch";
+import { scoreQuery, isChosungOnly } from "@/lib/koreanSearch";
 import { Search } from "lucide-react";
 import PlayerCard from "@/components/PlayerCard";
 
@@ -33,8 +33,16 @@ function SearchResults() {
   }, [q, results]);
 
   useEffect(() => {
-    if (scoredResults.length > 0 && scoredResults[0].score >= 1000) {
-      const player = scoredResults[0].player;
+    if (scoredResults.length === 0) return;
+
+    // 초성 검색은 자동 이동 안 함
+    if (isChosungOnly(q)) return;
+
+    const top = scoredResults[0];
+
+    // score 1500 이상일 때만 자동 이동 (exact match 수준)
+    if (top.score >= 1500) {
+      const player = top.player;
       if (player.dbId) {
         fetch(`/api/players/${player.dbId}/click`, {
           method: "POST",
@@ -43,9 +51,15 @@ function SearchResults() {
       }
       router.push(`/player/${player.id}`);
     }
-  }, [scoredResults, router]);
+  }, [scoredResults, q, router]);
 
-  if (scoredResults.length > 0 && scoredResults[0].score >= 1000) return null;
+  // 자동 이동 중일 때 빈 화면 방지
+  const isAutoRedirecting =
+    scoredResults.length > 0 &&
+    !isChosungOnly(q) &&
+    scoredResults[0].score >= 1500;
+
+  if (isAutoRedirecting) return null;
 
   return (
     <main className="pt-0">
