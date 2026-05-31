@@ -1,16 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import {
-  ChevronDown,
-  ExternalLink,
-  ShoppingCart,
-  X,
-  ArrowLeft,
-} from "lucide-react";
+import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
 import { equipmentImages } from "@/lib/equipmentData";
 
 const typeLabelMap: Record<string, string> = {
@@ -40,8 +34,29 @@ const categoryIcons: Record<string, string> = {
   mousepad: "⬜",
   monitor: "🖥️",
   chair: "🪑",
-  desk: "🪵",
+  desk: "desk-svg",
 };
+
+function DeskIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {/* Table top */}
+      <rect x="2" y="8" width="20" height="2" rx="0.5" />
+      {/* Left leg */}
+      <rect x="5" y="10" width="2" height="10" rx="0.5" />
+      {/* Right leg */}
+      <rect x="17" y="10" width="2" height="10" rx="0.5" />
+    </svg>
+  );
+}
 
 interface EquipmentRankItem {
   id: number;
@@ -69,29 +84,6 @@ export default function EquipmentRankingPage() {
   const [equipments, setEquipments] = useState<EquipmentRankItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
-  const [selectedEquip, setSelectedEquip] = useState<EquipmentRankItem | null>(
-    null,
-  );
-  const detailRef = useRef<HTMLDivElement>(null);
-
-  // Smooth-scroll to the detail section when an equipment is selected
-  const scrollToDetail = useCallback(() => {
-    requestAnimationFrame(() => {
-      const container = document.getElementById("main-scroll");
-      if (!container || !detailRef.current) return;
-      const targetTop =
-        detailRef.current.getBoundingClientRect().top +
-        container.scrollTop -
-        80;
-      container.scrollTo({ top: targetTop, behavior: "smooth" });
-    });
-  }, []);
-
-  useEffect(() => {
-    if (selectedEquip) {
-      scrollToDetail();
-    }
-  }, [selectedEquip, scrollToDetail]);
 
   // Restore visibleRows on mount
   useEffect(() => {
@@ -255,7 +247,11 @@ export default function EquipmentRankingPage() {
               className="flex flex-col items-center justify-center gap-0.5 shrink-0 w-14 h-14 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
             >
               <span className="text-base leading-none">
-                {categoryIcons[cat] || "📦"}
+                {cat === "desk" ? (
+                  <DeskIcon className="w-5 h-5" />
+                ) : (
+                  categoryIcons[cat] || "📦"
+                )}
               </span>
               <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
                 {typeLabelMap[cat] || cat}
@@ -285,11 +281,7 @@ export default function EquipmentRankingPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {visibleItems.map((item) => (
-                <EquipmentRankCard
-                  key={item.id}
-                  item={item}
-                  onIconClick={(eq) => setSelectedEquip(eq)}
-                />
+                <EquipmentRankCard key={item.id} item={item} />
               ))}
             </div>
 
@@ -311,173 +303,21 @@ export default function EquipmentRankingPage() {
           </section>
         );
       })}
-
-      {/* ── Selected Equipment Detail Section ── */}
-      {selectedEquip && (
-        <section
-          ref={detailRef}
-          className="scroll-mt-24 mb-10 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-            <h2 className="text-base font-bold text-zinc-900 dark:text-white">
-              장비 상세 정보
-            </h2>
-            <button
-              onClick={() => setSelectedEquip(null)}
-              className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-            </button>
-          </div>
-
-          <div className="flex flex-col md:flex-row">
-            {/* Equipment Image */}
-            <div className="w-full md:w-1/3 bg-zinc-50 dark:bg-zinc-900 p-6 flex items-center justify-center min-h-50">
-              {equipmentImages[selectedEquip.key] ? (
-                <Image
-                  src={equipmentImages[selectedEquip.key]!}
-                  alt={selectedEquip.key}
-                  width={200}
-                  height={200}
-                  className="max-h-full max-w-full object-contain"
-                  style={{ width: "auto", height: "auto" }}
-                />
-              ) : (
-                <div className="text-zinc-400 dark:text-zinc-600 text-sm">
-                  이미지 없음
-                </div>
-              )}
-            </div>
-
-            {/* Equipment Info */}
-            <div className="flex-1 p-4 space-y-3">
-              {/* Rank badge + Category */}
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded ${
-                    selectedEquip.popularity_rank === 1
-                      ? "bg-yellow-400 text-yellow-900"
-                      : selectedEquip.popularity_rank === 2
-                        ? "bg-zinc-300 text-zinc-700"
-                        : selectedEquip.popularity_rank === 3
-                          ? "bg-amber-600 text-white"
-                          : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
-                  }`}
-                >
-                  # {selectedEquip.popularity_rank}
-                </span>
-                <span className="text-xs font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
-                  {typeLabelMap[selectedEquip.category] ||
-                    selectedEquip.category}
-                </span>
-              </div>
-
-              {/* Brand + Model */}
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
-                {selectedEquip.brand} {selectedEquip.model}
-              </h3>
-
-              {/* Specs */}
-              <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                {selectedEquip.connection && (
-                  <span className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-                    {selectedEquip.connection}
-                  </span>
-                )}
-                {selectedEquip.weight && (
-                  <span className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-                    {selectedEquip.weight}
-                  </span>
-                )}
-                {selectedEquip.size && (
-                  <span className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-                    {selectedEquip.size}
-                  </span>
-                )}
-                {selectedEquip.maxSpeed && (
-                  <span className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-                    {selectedEquip.maxSpeed}
-                  </span>
-                )}
-                {selectedEquip.dpi && (
-                  <span className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-                    {selectedEquip.dpi}
-                  </span>
-                )}
-              </div>
-
-              {/* Player count */}
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                사용중인 선수:{" "}
-                <span className="font-semibold text-zinc-900 dark:text-white">
-                  {selectedEquip.currently_used}명
-                </span>
-              </p>
-
-              {/* Action buttons */}
-              <div className="flex gap-2 pt-2">
-                <Link
-                  href={`/equipment/${selectedEquip.category}/${encodeURIComponent(selectedEquip.key)}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors no-underline"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  상세 페이지
-                </Link>
-                {selectedEquip.officialUrl && (
-                  <button
-                    onClick={() =>
-                      window.open(
-                        selectedEquip.officialUrl,
-                        "_blank",
-                        "noopener,noreferrer",
-                      )
-                    }
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-lg transition-colors cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    공식사이트
-                  </button>
-                )}
-                <button
-                  onClick={() =>
-                    window.open(
-                      `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(selectedEquip.key)}`,
-                      "_blank",
-                      "noopener,noreferrer",
-                    )
-                  }
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors cursor-pointer"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  득템
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
 
-function EquipmentRankCard({
-  item,
-  onIconClick,
-}: {
-  item: EquipmentRankItem;
-  onIconClick: (item: EquipmentRankItem) => void;
-}) {
+function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
   const imgSrc = equipmentImages[item.key] || null;
   const equipmentUrl = `/equipment/${item.category}/${encodeURIComponent(item.key)}`;
 
   return (
-    <div className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline">
-      {/* Top: Rank badge + Brand + Model (click navigates to detail page) */}
-      <Link
-        href={equipmentUrl}
-        className="block px-2.5 pt-2 pb-1 space-y-0.5 no-underline"
-      >
+    <Link
+      href={equipmentUrl}
+      className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
+    >
+      {/* Top: Rank badge + Brand + Model */}
+      <div className="px-2.5 pt-2 pb-1 space-y-0.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -499,13 +339,10 @@ function EquipmentRankCard({
             {item.model}
           </span>
         </div>
-      </Link>
+      </div>
 
-      {/* Image — click to scroll to detail section on same page */}
-      <button
-        onClick={() => onIconClick(item)}
-        className="relative bg-zinc-50 dark:bg-zinc-900 p-2 flex items-center justify-center aspect-square w-full cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"
-      >
+      {/* Image */}
+      <div className="relative bg-zinc-50 dark:bg-zinc-900 p-2 flex items-center justify-center aspect-square">
         {imgSrc ? (
           <Image
             src={imgSrc}
@@ -520,7 +357,7 @@ function EquipmentRankCard({
             이미지 없음
           </div>
         )}
-      </button>
+      </div>
 
       {/* Bottom: Features + Buttons */}
       <div className="p-2.5 space-y-1.5 flex flex-col flex-1">
@@ -570,9 +407,10 @@ function EquipmentRankCard({
         <div className="flex gap-1.5 mt-auto pt-1">
           {item.officialUrl && (
             <button
-              onClick={() =>
-                window.open(item.officialUrl, "_blank", "noopener,noreferrer")
-              }
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(item.officialUrl, "_blank", "noopener,noreferrer");
+              }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors cursor-pointer"
             >
               <ExternalLink className="w-2.5 h-2.5" />
@@ -580,13 +418,14 @@ function EquipmentRankCard({
             </button>
           )}
           <button
-            onClick={() =>
+            onClick={(e) => {
+              e.stopPropagation();
               window.open(
                 `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(item.key)}`,
                 "_blank",
                 "noopener,noreferrer",
-              )
-            }
+              );
+            }}
             className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer"
           >
             <ShoppingCart className="w-2.5 h-2.5" />
@@ -594,6 +433,6 @@ function EquipmentRankCard({
           </button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
