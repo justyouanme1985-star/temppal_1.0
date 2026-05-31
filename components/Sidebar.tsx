@@ -105,6 +105,14 @@ export default function Sidebar() {
               <button
                 onClick={() => {
                   sessionStorage.removeItem("homepage_scrollY");
+                  sessionStorage.removeItem("equip_visibleRows");
+                  for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    if (key?.startsWith("homepage_visibleCount_")) {
+                      sessionStorage.removeItem(key);
+                      i--;
+                    }
+                  }
                   window.location.href = "/";
                 }}
                 className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium cursor-pointer"

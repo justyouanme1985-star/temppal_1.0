@@ -53,9 +53,10 @@ interface EquipmentRankItem {
   count_items_cumulative: number;
   apoint: number;
   bpoint: number;
+  cpoint: number;
   total_points: number;
   popularity_rank: number;
-  playerCount: number;
+  currently_used: number;
 }
 
 export default function EquipmentRankingPage() {
@@ -63,7 +64,7 @@ export default function EquipmentRankingPage() {
   const [loading, setLoading] = useState(true);
   const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
 
-  // Restore visibleRows on mount (avoids hydration mismatch)
+  // Restore visibleRows on mount
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem("equip_visibleRows");
@@ -93,120 +94,38 @@ export default function EquipmentRankingPage() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       );
-      // Fetch equipment info and player counts in parallel
-      const [equipRes, playerCountRes] = await Promise.all([
-        supabase
-          .from("equipment_info")
-          .select(
-            "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl",
-          )
-          .order("category", { ascending: true })
-          .order("id", { ascending: true }),
-        supabase
-          .from("gamers_info")
-          .select(
-            "mouse, keyboard, headset, monitor, mousepad, chair, desk, previous_mouse, previous_keyboard, previous_mousepad",
-          ),
-      ]);
-
-      // Count how many players use each equipment key (fuzzy match)
-      const playerCountMap = new Map<string, string[]>();
-      for (const g of playerCountRes.data || []) {
-        const fields = [
-          g.mouse,
-          g.keyboard,
-          g.headset,
-          g.monitor,
-          g.mousepad,
-          g.chair,
-          g.desk,
-          g.previous_mouse,
-          g.previous_keyboard,
-          g.previous_mousepad,
-        ];
-        const seen = new Set<string>();
-        for (const name of fields) {
-          if (!name || seen.has(name)) continue;
-          seen.add(name);
-          const norm = name
-            .toLowerCase()
-            .replace(/[\s-]+/g, " ")
-            .replace(/[®™©]/g, "")
-            .trim();
-          // Index by the first 4 significant words for faster lookup
-          const words = norm.split(" ").filter(Boolean);
-          for (let i = 0; i < words.length; i++) {
-            const prefix = words.slice(0, i + 1).join(" ");
-            if (!playerCountMap.has(prefix)) {
-              playerCountMap.set(prefix, []);
-            }
-            playerCountMap.get(prefix)!.push(name);
-          }
-        }
-      }
-
-      // Normalize helper for comparison
-      function normName(s: string): string {
-        return s
-          .toLowerCase()
-          .replace(/[\s-]+/g, " ")
-          .replace(/[®™©]/g, "")
-          .trim();
-      }
+      // Fetch equipment info — ranking already computed by Supabase
+      const equipRes = await supabase
+        .from("equipment_info")
+        .select(
+          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
+        )
+        .order("category", { ascending: true })
+        .order("popularity_rank", { ascending: true });
 
       const data = equipRes.data;
       if (mounted && data) {
-        const items: EquipmentRankItem[] = data.map((d: any) => {
-          const normKey = normName(d.key || "");
-          // Find matching player names via fuzzy prefix
-          const words = normKey.split(" ").filter(Boolean);
-          const keyPrefix = words.slice(0, Math.min(words.length, 3)).join(" ");
-          const candidates = playerCountMap.get(keyPrefix) || [];
-          const matchedPlayers = new Set<string>();
-          for (const playerName of candidates) {
-            const pn = normName(playerName);
-            if (
-              pn === normKey ||
-              pn.includes(normKey) ||
-              normKey.includes(pn)
-            ) {
-              matchedPlayers.add(playerName);
-            }
-          }
-          const playerCount = matchedPlayers.size;
-          return {
-            id: d.id,
-            key: d.key,
-            brand: d.brand,
-            model: d.model,
-            category: d.category,
-            officialUrl: d.officialUrl,
-            weight: d.weight,
-            connection: d.connection,
-            size: d.size,
-            maxSpeed: d.maXSpeed,
-            dpi: d.dpi,
-            count_items_recent: d.count_items_recent ?? 0,
-            count_items_cumulative: d.count_items_cumulative ?? 0,
-            apoint: (d.count_items_recent ?? 0) * 3,
-            bpoint: d.count_items_cumulative ?? 0,
-            total_points:
-              (d.count_items_recent ?? 0) * 3 + (d.count_items_cumulative ?? 0),
-            popularity_rank: 0,
-            playerCount,
-          };
-        });
-        // Sort into per-category ranks
-        const cats = [...new Set(items.map((i) => i.category))];
-        for (const cat of cats) {
-          const catItems = items.filter((i) => i.category === cat);
-          catItems.sort(
-            (a, b) => b.total_points - a.total_points || a.id - b.id,
-          );
-          catItems.forEach((item, idx) => {
-            item.popularity_rank = idx + 1;
-          });
-        }
+        const items: EquipmentRankItem[] = data.map((d: any) => ({
+          id: d.id,
+          key: d.key,
+          brand: d.brand,
+          model: d.model,
+          category: d.category,
+          officialUrl: d.officialUrl,
+          weight: d.weight,
+          connection: d.connection,
+          size: d.size,
+          maxSpeed: d.maXSpeed,
+          dpi: d.dpi,
+          count_items_recent: d.count_items_recent ?? 0,
+          count_items_cumulative: d.count_items_cumulative ?? 0,
+          apoint: d.apoint ?? 0,
+          bpoint: d.bpoint ?? 0,
+          cpoint: d.cpoint ?? 0,
+          total_points: d.total_points ?? 0,
+          popularity_rank: d.popularity_rank ?? 0,
+          currently_used: d.currently_used ?? 0,
+        }));
         setEquipments(items);
         setLoading(false);
       } else {
@@ -446,7 +365,7 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
         </div>
         {/* Player Count */}
         <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
-          사용중인 선수 : {item.playerCount}명
+          사용중인 선수 : {item.currently_used}명
         </div>
         {/* Action Buttons */}
         <div className="flex gap-1.5 mt-auto pt-1">

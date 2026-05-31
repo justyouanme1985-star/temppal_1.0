@@ -1,9 +1,14 @@
 "use client";
 
-import { useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Player } from "@/lib/playerData";
+import {
+  loadEquipmentFromSupabase,
+  getSupabaseEquipmentSpec,
+  equipmentImages,
+} from "@/lib/equipmentData";
 import {
   Mouse,
   Keyboard,
@@ -15,6 +20,9 @@ import {
   ChevronUp,
   ChevronDown,
   Minus,
+  X,
+  ExternalLink,
+  ShoppingCart,
 } from "lucide-react";
 
 const equipmentIcons = [
@@ -32,8 +40,27 @@ interface PlayerCardProps {
 }
 
 export default function PlayerCard({ player }: PlayerCardProps) {
-  const router = useRouter();
   const lastClickRef = useRef<Map<string, number>>(new Map());
+  const [popupEquip, setPopupEquip] = useState<{
+    name: string;
+    type: string;
+    typeKey: string;
+    imgSrc: string | null;
+    spec: any;
+    brand: string;
+    model: string;
+    officialUrl: string;
+  } | null>(null);
+
+  // Close popup on Escape
+  useEffect(() => {
+    if (!popupEquip) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setPopupEquip(null);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [popupEquip]);
 
   // Track click on player card (debounced: max 1 click per 10s per player)
   function handleCardClick() {
@@ -233,14 +260,28 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                   return (
                     <button
                       key={eq.key}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         handleEquipmentClick(
                           e,
                           eqData?.equipmentName || eq.label,
                         );
-                        router.push(
-                          `/equipment/${eq.key}/${encodeURIComponent(eqData?.equipmentName || eq.label)}${player.dbId ? `?playerId=${player.dbId}` : ""}`,
+                        const equipName = eqData?.equipmentName || eq.label;
+                        await loadEquipmentFromSupabase();
+                        const spec = getSupabaseEquipmentSpec(
+                          eq.key,
+                          equipName,
                         );
+                        const dbKey = spec?.key || equipName;
+                        setPopupEquip({
+                          name: equipName,
+                          type: eq.label,
+                          typeKey: eq.key,
+                          imgSrc: equipmentImages[dbKey] || null,
+                          spec,
+                          brand: spec?.brand || "",
+                          model: spec?.model || "",
+                          officialUrl: spec?.officialUrl || "",
+                        });
                       }}
                       className={`p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors group cursor-pointer`}
                       title={eq.label}
@@ -254,6 +295,144 @@ export default function PlayerCard({ player }: PlayerCardProps) {
           </div>
         </div>
       </Link>
+
+      {/* Equipment popup */}
+      {popupEquip &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
+            onClick={() => setPopupEquip(null)}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50" />
+
+            {/* Popup card */}
+            <div
+              className="relative bg-white dark:bg-zinc-800 rounded-xl shadow-2xl max-w-sm w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setPopupEquip(null)}
+                className="absolute top-3 right-3 p-1 rounded-full bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors z-10"
+              >
+                <X className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+              </button>
+
+              {/* Image section */}
+              <div className="bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-40">
+                {popupEquip.imgSrc ? (
+                  <img
+                    src={popupEquip.imgSrc}
+                    alt={popupEquip.name}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-zinc-400 dark:text-zinc-600 text-sm">
+                    이미지 없음
+                  </span>
+                )}
+              </div>
+
+              {/* Brand + Model */}
+              <div className="px-4 pt-3 pb-1">
+                <span className="text-xs font-semibold text-blue-500 dark:text-blue-400">
+                  {popupEquip.type}
+                </span>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white mt-0.5 leading-tight">
+                  {popupEquip.spec
+                    ? `${popupEquip.brand} ${popupEquip.model}`
+                    : popupEquip.name}
+                </h3>
+              </div>
+
+              {/* Specs: 2 rows */}
+              <div className="px-4 py-2 flex items-center gap-2 flex-wrap text-[11px]">
+                {(() => {
+                  const s = popupEquip.spec;
+                  if (!s) return null;
+                  const rows: { label: string; value: string }[] = [];
+                  const fields: Record<string, string[]> = {
+                    mouse: ["connection", "weight", "sensor", "dpi"],
+                    keyboard: ["switchType", "layout", "connection"],
+                    headset: ["driver", "freqResponse"],
+                    monitor: ["refreshRate", "size", "resolution", "panelType"],
+                    mousepad: ["size", "surface", "thickness"],
+                    chair: [],
+                    desk: [],
+                  };
+                  const cats = fields[popupEquip.typeKey] || [];
+                  for (const key of cats) {
+                    const val = s[key];
+                    if (
+                      val &&
+                      !/^(n\/?a|null|none|-)$/i.test(String(val).trim())
+                    ) {
+                      rows.push({
+                        label: key,
+                        value: String(val).trim(),
+                      });
+                    }
+                  }
+                  // Limit to 2 rows
+                  const showRows = rows.slice(0, 2);
+                  return showRows.map((r) => (
+                    <span
+                      key={r.label}
+                      className="bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded truncate max-w-[120px]"
+                    >
+                      {r.value}
+                    </span>
+                  ));
+                })()}
+                {popupEquip.spec?.brand && popupEquip.spec?.model && (
+                  <Link
+                    href={`/equipment/${popupEquip.typeKey}/${encodeURIComponent(popupEquip.name)}${player.dbId ? `?playerId=${player.dbId}` : ""}`}
+                    className="text-[11px] text-blue-500 dark:text-blue-400 hover:underline ml-auto shrink-0"
+                    onClick={() => setPopupEquip(null)}
+                  >
+                    더보기 →
+                  </Link>
+                )}
+              </div>
+
+              {/* Action buttons: equal height */}
+              <div className="px-4 pb-4 pt-1 flex gap-2">
+                {popupEquip.officialUrl && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(
+                        popupEquip.officialUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    공식사이트
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(
+                      `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(popupEquip.spec ? `${popupEquip.brand} ${popupEquip.model}` : popupEquip.name)}`,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors"
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  득템
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

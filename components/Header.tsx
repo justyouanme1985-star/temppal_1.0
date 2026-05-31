@@ -137,6 +137,15 @@ export default function Header() {
           href="/"
           onClick={(e) => {
             sessionStorage.removeItem("homepage_scrollY");
+            sessionStorage.removeItem("equip_visibleRows");
+            // Clear all homepage expand states so it loads fresh
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const key = sessionStorage.key(i);
+              if (key?.startsWith("homepage_visibleCount_")) {
+                sessionStorage.removeItem(key);
+                i--; // adjust index after removal
+              }
+            }
             if (pathname === "/") {
               e.preventDefault();
               window.location.href = "/";
