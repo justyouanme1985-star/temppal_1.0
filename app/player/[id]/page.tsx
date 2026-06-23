@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
 import CommentSection from "@/components/CommentSection";
+import { coupangLink } from "@/lib/coupang";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -324,9 +325,7 @@ function EquipmentCard({
               e.stopPropagation();
               handleEquipmentBtnClick();
               window.open(
-                `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(
-                  spec ? `${spec.brand} ${spec.model}` : name,
-                )}`,
+                coupangLink(spec ? `${spec.brand} ${spec.model}` : name),
                 "_blank",
                 "noopener,noreferrer",
               );

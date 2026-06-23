@@ -9,6 +9,7 @@ import {
   getSupabaseEquipmentSpec,
   equipmentImages,
 } from "@/lib/equipmentData";
+import { coupangLink } from "@/lib/coupang";
 import {
   Mouse,
   Keyboard,
@@ -418,7 +419,11 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(
-                      `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(popupEquip.spec ? `${popupEquip.brand} ${popupEquip.model}` : popupEquip.name)}`,
+                      coupangLink(
+                        popupEquip.spec
+                          ? `${popupEquip.brand} ${popupEquip.model}`
+                          : popupEquip.name,
+                      ),
                       "_blank",
                       "noopener,noreferrer",
                     );

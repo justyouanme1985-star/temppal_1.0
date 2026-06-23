@@ -18,7 +18,12 @@ export default function Footer() {
           </Link>
         </div>
 
-        <div className="text-xs text-zinc-600 dark:text-zinc-400">
+        <div className="text-xs text-zinc-500 dark:text-zinc-500 leading-relaxed mt-2 max-w-xl mx-auto">
+          본 사이트는 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
+          제공받습니다.
+        </div>
+
+        <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-4">
           © 2026 Temppal. All Rights Reserved.
         </div>
       </div>

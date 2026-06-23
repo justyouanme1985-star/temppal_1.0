@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
+import { coupangLink } from "@/lib/coupang";
 import { equipmentImages } from "@/lib/equipmentData";
 
 const typeLabelMap: Record<string, string> = {
@@ -421,7 +422,8 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
             onClick={(e) => {
               e.stopPropagation();
               window.open(
-                `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(item.key)}`,
+                `쿠팡에서 검색`,
+                coupangLink(item.key),
                 "_blank",
                 "noopener,noreferrer",
               );

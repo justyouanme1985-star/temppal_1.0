@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import { coupangLink } from "@/lib/coupang";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -293,9 +294,9 @@ export default function EquipmentPage({
                   </a>
                 )}
                 <a
-                  href={`https://www.coupang.com/np/search?component=&q=${encodeURIComponent(
+                  href={coupangLink(
                     spec ? `${spec.brand} ${spec.model}` : equipmentName,
-                  )}`}
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2.5 rounded-lg transition-colors"
