@@ -6,6 +6,7 @@ import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
+import CommentSection from "@/components/CommentSection";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -645,6 +646,9 @@ export default function PlayerPage({
             </div>
           </>
         )}
+
+        {/* Comments */}
+        <CommentSection targetType="player" targetId={id} />
       </div>
     </div>
   );

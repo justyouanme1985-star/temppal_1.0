@@ -1,9 +1,70 @@
 import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// ── Rate limiter: max 20 emails per hour per IP ──
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const rateMap = new Map<string, number[]>();
+
+function checkRateLimit(ip: string): { ok: boolean; remaining: number; resetAfter: number } {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+  let timestamps = rateMap.get(ip);
+  if (!timestamps) {
+    timestamps = [];
+    rateMap.set(ip, timestamps);
+  }
+
+  // Remove old entries outside the window
+  const recent = timestamps.filter(t => t > windowStart);
+  rateMap.set(ip, recent);
+
+  const remaining = RATE_LIMIT_MAX - recent.length;
+  const oldest = recent.length > 0 ? recent[0] : now;
+  const resetAfter = Math.max(0, RATE_LIMIT_WINDOW_MS - (now - oldest));
+
+  if (recent.length >= RATE_LIMIT_MAX) {
+    return { ok: false, remaining: 0, resetAfter };
+  }
+
+  recent.push(now);
+  return { ok: true, remaining: remaining - 1, resetAfter };
+}
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req.headers.get("x-real-ip") || "127.0.0.1";
+}
+
+function getTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   try {
+    // ── Rate limit check ──
+    const ip = getClientIp(req);
+    const rateCheck = checkRateLimit(ip);
+    if (!rateCheck.ok) {
+      const minutes = Math.ceil(rateCheck.resetAfter / 60000);
+      return NextResponse.json({
+        error: `1시간 내 메일 발송 한도(20개)를 초과했습니다. ${minutes}분 후에 다시 시도해주세요.`,
+        retryAfter: rateCheck.resetAfter,
+      }, { status: 429 });
+    }
+
     const body = await req.json();
     const { type, to, cc, from, subject, message, attachments } = body || {};
 
@@ -41,14 +102,44 @@ export async function POST(req: Request) {
       }
     }
 
-    // Simulate sending: log to server console (do not print base64 data)
-    const attachmentSummary = (attachments || []).map((a: any) => ({ name: a.name, type: a.type, size: a.size }));
-    console.log("[MAIL SEND]", { type, to, cc, from, subject, message, attachments: attachmentSummary });
+    // Build email
+    const typeLabel = type === "report" ? "[신고/접수]" : "[문의]";
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `"${from}" <${process.env.SMTP_USER || "noreply@temppal.com"}>`,
+      to,
+      replyTo: from,
+      subject: `${typeLabel} ${subject}`,
+      text: `보낸 사람: ${from}\n${cc ? `참조: ${cc}\n` : ""}\n${message}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <p><strong>보낸 사람:</strong> ${from}</p>
+          ${cc ? `<p><strong>참조:</strong> ${cc}</p>` : ""}
+          <hr style="border: none; border-top: 1px solid #e0e0e0;" />
+          <div style="white-space: pre-wrap;">${message.replace(/\n/g, "<br>")}</div>
+        </div>
+      `,
+    };
 
-    // Respond with success (simulation)
-    return NextResponse.json({ ok: true, message: "메일이 큐에 추가되었습니다 (시뮬레이션).", attachments: attachmentSummary });
+    // Attach files
+    if (attachments && attachments.length > 0) {
+      mailOptions.attachments = attachments.map((a: any) => ({
+        filename: a.name,
+        content: a.dataUrl.split(",")[1],
+        encoding: "base64",
+        contentType: a.type,
+      }));
+    }
+
+    // Send via SMTP
+    const transporter = getTransporter();
+    await transporter.sendMail(mailOptions);
+
+    const attachmentSummary = (attachments || []).map((a: any) => ({ name: a.name, type: a.type, size: a.size }));
+    console.log("[MAIL SEND OK]", { type, to, from, subject, attachments: attachmentSummary });
+
+    return NextResponse.json({ ok: true, message: "메일이 전송되었습니다.", attachments: attachmentSummary });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: "메일 전송 중 오류가 발생했습니다. 나중에 다시 시도해주세요." }, { status: 500 });
   }
 }

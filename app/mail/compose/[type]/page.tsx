@@ -9,11 +9,9 @@ export default function MailComposePage() {
   const type = (params?.type as string) || "contact";
   const router = useRouter();
 
-  const defaultTo =
-    type === "report" ? "report@temppal.com" : "contact@temppal.com";
+  const defaultTo = "temppal2026@gmail.com";
 
-  const internalCc =
-    type === "report" ? "report-internal@temppal.com" : "team@temppal.com";
+  const internalCc = "";
   const [to, setTo] = useState<string>(defaultTo);
   const [cc, setCc] = useState<string>(internalCc);
   const [from, setFrom] = useState<string>("");

@@ -1,6 +1,14 @@
 "use client";
 
-import { Gamepad2, Flame, Zap, Target, Menu, ChevronsLeft } from "lucide-react";
+import {
+  Gamepad2,
+  Flame,
+  Zap,
+  Target,
+  Menu,
+  ChevronsLeft,
+  Shield,
+} from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -37,6 +45,10 @@ const games = [
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminPwd, setAdminPwd] = useState("");
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminMsg, setAdminMsg] = useState("");
 
   return (
     <aside
@@ -140,11 +152,99 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer with admin */}
       {isExpanded && (
-        <div className="border-t border-zinc-200 dark:border-zinc-700 p-3 text-xs text-zinc-400 dark:text-zinc-500">
-          © 2026 템빨
+        <div className="border-t border-zinc-200 dark:border-zinc-700 p-3">
+          {showAdmin && !adminAuthed ? (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const res = await fetch("/api/admin", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ password: adminPwd }),
+                });
+                if (res.ok) {
+                  localStorage.setItem("temppal_admin", "true");
+                  sessionStorage.setItem("temppal_admin_pwd", adminPwd);
+                  setAdminAuthed(true);
+                  setAdminMsg("관리자 모드 활성화");
+                } else {
+                  setAdminMsg("비밀번호 불일치");
+                }
+              }}
+              className="flex items-center gap-1"
+            >
+              <input
+                type="password"
+                value={adminPwd}
+                onChange={(e) => setAdminPwd(e.target.value)}
+                placeholder="pwd"
+                className="flex-1 px-2 py-1 text-[10px] border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="shrink-0 px-2 py-1 text-[10px] font-medium bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 rounded"
+              >
+                확인
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdmin(false);
+                  setAdminPwd("");
+                  setAdminMsg("");
+                }}
+                className="shrink-0 text-[10px] text-zinc-400 hover:text-zinc-600"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                © 2026 템빨
+              </span>
+              <button
+                onClick={() => {
+                  if (adminAuthed) {
+                    localStorage.removeItem("temppal_admin");
+                    sessionStorage.removeItem("temppal_admin_pwd");
+                    setAdminAuthed(false);
+                    setAdminMsg("");
+                  } else {
+                    setShowAdmin(true);
+                  }
+                }}
+                className={`transition-colors ${adminAuthed ? "text-green-500" : "text-zinc-300 hover:text-zinc-500 dark:hover:text-zinc-400"}`}
+                title={adminAuthed ? "관리자 로그아웃" : "관리자"}
+              >
+                <Shield className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          {adminMsg && (
+            <p
+              className={`text-[10px] mt-1 ${adminAuthed ? "text-green-500" : "text-red-500"}`}
+            >
+              {adminMsg}
+            </p>
+          )}
         </div>
+      )}
+
+      {/* Collapsed: shield icon */}
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full flex items-center justify-center py-2 text-zinc-300 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors border-t border-zinc-200 dark:border-zinc-700"
+          title="관리자"
+        >
+          <Shield
+            className={`w-4 h-4 ${adminAuthed ? "text-green-500" : ""}`}
+          />
+        </button>
       )}
     </aside>
   );

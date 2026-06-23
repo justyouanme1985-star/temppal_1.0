@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -325,6 +326,9 @@ export default function EquipmentPage({
             ))}
           </div>
         )}
+
+        {/* Comments */}
+        <CommentSection targetType="equipment" targetId={equipmentName} />
       </div>
     </div>
   );
@@ -359,7 +363,7 @@ function EquipmentPlayerCard({ player }: { player: Player }) {
       className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
     >
       {/* Player Image - circular */}
-      <div className="aspect-square bg-zinc-50 dark:bg-zinc-900 overflow-hidden rounded-full p-4">
+      <div className="w-40 h-40 rounded-full overflow-hidden mx-auto mt-4 bg-zinc-50 dark:bg-zinc-900">
         {player.playerImage ? (
           <img
             src={player.playerImage}
@@ -372,8 +376,8 @@ function EquipmentPlayerCard({ player }: { player: Player }) {
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-zinc-400 dark:text-zinc-600 text-sm">
-            이미지 없음
+          <div className="w-40 h-40 flex items-center justify-center text-zinc-400 dark:text-zinc-600 text-xs">
+            ?
           </div>
         )}
       </div>
