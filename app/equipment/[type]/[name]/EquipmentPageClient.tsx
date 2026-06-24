@@ -4,9 +4,9 @@ import { use, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -318,20 +318,12 @@ export default function EquipmentPageClient({
                     공식사이트
                   </a>
                 )}
-                <button
-                  onClick={() =>
-                    openCoupangLink(
-                      coupangLink(
-                        spec ? `${spec.brand} ${spec.model}` : equipmentName,
-                        spec?.affiliate_url,
-                      ),
-                    )
-                  }
-                  className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  득템
-                </button>
+                <CoupangAffiliateLink
+                  query={spec ? `${spec.brand} ${spec.model}` : equipmentName}
+                  affiliateUrl={spec?.affiliate_url}
+                  className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer no-underline"
+                  iconClassName="w-4 h-4"
+                />
               </div>
             </div>
           </div>

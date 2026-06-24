@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import { ChevronDown, ExternalLink } from "lucide-react";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import { equipmentImages } from "@/lib/equipmentData";
 
 const typeLabelMap: Record<string, string> = {
@@ -422,18 +422,12 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
               공식사이트
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openCoupangLink(coupangLink(item.key, item.affiliate_url));
-            }}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer"
-            type="button"
-          >
-            <ShoppingCart className="w-2.5 h-2.5" />
-            득템
-          </button>
+          <CoupangAffiliateLink
+            query={item.key}
+            affiliateUrl={item.affiliate_url}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer no-underline"
+            iconClassName="w-2.5 h-2.5"
+          />
         </div>
       </div>
     </Link>

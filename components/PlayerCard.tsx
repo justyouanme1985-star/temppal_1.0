@@ -12,7 +12,7 @@ import {
   resolveEquipmentLinkKey,
   getImageByCatalogId,
 } from "@/lib/equipmentData";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   Mouse,
   Keyboard,
@@ -26,7 +26,6 @@ import {
   Minus,
   X,
   ExternalLink,
-  ShoppingCart,
 } from "lucide-react";
 
 const equipmentIcons = [
@@ -439,23 +438,16 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                     공식사이트
                   </button>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openCoupangLink(
-                      coupangLink(
-                        popupEquip.spec
-                          ? `${popupEquip.brand} ${popupEquip.model}`
-                          : popupEquip.name,
-                        popupEquip.spec?.affiliate_url,
-                      ),
-                    );
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors"
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  득템
-                </button>
+                <CoupangAffiliateLink
+                  query={
+                    popupEquip.spec
+                      ? `${popupEquip.brand} ${popupEquip.model}`
+                      : popupEquip.name
+                  }
+                  affiliateUrl={popupEquip.spec?.affiliate_url}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors no-underline"
+                  iconClassName="w-3.5 h-3.5"
+                />
               </div>
             </div>
           </div>,

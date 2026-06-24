@@ -4,10 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -17,6 +17,7 @@ import {
   getImageByCatalogId,
   resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
+  resolveEquipmentAffiliateUrl,
 } from "@/lib/equipmentData";
 
 const equipmentTypeMap: Record<string, string> = {
@@ -69,19 +70,29 @@ function EquipmentCard({
       if (equipmentCatalogId) {
         const byId = getSupabaseEquipmentById(equipmentCatalogId);
         if (byId?.key) linkKey = byId.key;
+        if (byId && !raw) raw = byId;
       }
+      const affiliateUrl =
+        raw?.affiliate_url ??
+        resolveEquipmentAffiliateUrl(typeKey, name, equipmentCatalogId) ??
+        resolveEquipmentAffiliateUrl(typeKey, linkKey, equipmentCatalogId);
+      const resolvedImage =
+        getImageByCatalogId(equipmentCatalogId) ||
+        getImageByCatalogId(typeof raw?.id === "number" ? raw.id : null) ||
+        resolveEquipmentImageUrl(typeKey, name, linkKey, raw?.key);
       if (!raw) {
         const staticSpec =
           getEquipmentSpec(type, name) ??
           getEquipmentSpec(type, linkKey);
-        const image =
-          getImageByCatalogId(equipmentCatalogId) ||
-          resolveEquipmentImageUrl(typeKey, name, linkKey);
-        if (staticSpec || image) {
-          const specObj = staticSpec
-            ? { ...staticSpec, _type: typeKey }
-            : { brand: "", model: linkKey, image: "", _type: typeKey };
-          if (image) specObj.image = image;
+        if (staticSpec || resolvedImage) {
+          const specObj = {
+            ...(staticSpec || {}),
+            _type: typeKey,
+            brand: staticSpec?.brand || "",
+            model: staticSpec?.model || linkKey,
+            image: resolvedImage || "",
+            affiliate_url: affiliateUrl,
+          };
           if (mounted) {
             setSpec(specObj);
             setLinkName(linkKey);
@@ -95,10 +106,9 @@ function EquipmentCard({
       }
       if (mounted) {
         const formatted = formatEquipmentSpec(raw, typeKey, [name, linkKey]);
-        if (formatted && !formatted.image) {
-          formatted.image =
-            getImageByCatalogId(typeof raw.id === "number" ? raw.id : equipmentCatalogId) ||
-            resolveEquipmentImageUrl(typeKey, raw.key, name, linkKey);
+        if (formatted) {
+          formatted.image = resolvedImage || formatted.image || "";
+          formatted.affiliate_url = affiliateUrl ?? formatted.affiliate_url;
         }
         setSpec(formatted);
         setLinkName(linkKey);
@@ -349,24 +359,12 @@ function EquipmentCard({
               공식사이트
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEquipmentBtnClick();
-              openCoupangLink(
-                coupangLink(
-                  spec ? `${spec.brand} ${spec.model}` : name,
-                  spec?.affiliate_url,
-                ),
-              );
-            }}
-            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer"
-            type="button"
-          >
-            <ShoppingCart className="w-3 h-3" />
-            득템
-          </button>
+          <CoupangAffiliateLink
+            query={spec ? `${spec.brand} ${spec.model}` : name}
+            affiliateUrl={spec?.affiliate_url}
+            onNavigate={handleEquipmentBtnClick}
+            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer no-underline"
+          />
         </div>
       </div>
     </Link>

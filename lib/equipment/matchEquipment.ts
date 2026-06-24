@@ -52,7 +52,6 @@ const WORD_TRANSLATIONS: Record<string, string> = {
   흰색: "white",
   게이밍: "gaming",
   슈퍼라이트: "superlight",
-  미니옵: "pro",
   바이퍼: "viper",
   데스에더: "deathadder",
   헌츠맨: "huntsman",
@@ -60,10 +59,41 @@ const WORD_TRANSLATIONS: Record<string, string> = {
   기간투스: "goliathus",
   스트라이더: "strider",
   클라우드: "cloud",
-  단패드: "qck",
-  장패드: "qck",
-  중패드: "p sr",
 };
+
+/** Extra tokens allowed when matching product name prefixes (e.g. Faker Edition, size L). */
+const SAFE_EXTRA_TOKENS = new Set([
+  "faker",
+  "edition",
+  "black",
+  "white",
+  "original",
+  "pro",
+  "max",
+  "mini",
+  "l",
+  "m",
+  "s",
+  "xl",
+  "xxl",
+  "full",
+  "size",
+  "speed",
+  "balance",
+  "wireless",
+  "wired",
+  "gaming",
+  "rgb",
+  "carbon",
+  "cloth",
+  "clotch",
+  "tenkeyless",
+  "tkl",
+  "se",
+  "dex",
+  "hyperspeed",
+  "signature",
+]);
 
 /** Decorative tokens stripped for variant matching (never strip l/m/xxl — different SKUs). */
 const VARIANT_TOKENS = new Set([
@@ -117,6 +147,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   // Razer mice
   "레이저 바이퍼 v3 pro": "Razer Viper V3 Pro",
   "레이저 데스에더 v3 pro": "Razer DeathAdder V3 Pro",
+  "razer deathadder v3 pro faker edition": "Razer DeathAdder V3 PRO",
   "바이퍼 미니 무선 시그니처 마우스": "Razer Viper Mini Signature Edition",
 
   // Razer keyboards
@@ -170,6 +201,13 @@ const CATALOG_KEY_EQUIVALENTS: string[][] = [
   ["Logitech G640", "Logitech G640 Black", "Logitech G640 Original", "로지텍 G640"],
   ["Logitech G Pro X TKL Keyboard Black", "Logitech G PRO X TKL", "Logitech G Pro X TKL"],
   ["Logitech G Pro Wireless", "Logitech G Pro X Wireless Lightspeed"],
+  ["Razer DeathAdder V3 PRO", "Razer DeathAdder V3 Pro", "Razer DeathAdder V3 Pro Faker Edition"],
+  ["Razer Deathadder V3 Pro", "Razer DeathAdder V3 PRO"],
+  ["Razer BlackShark V2 PRO", "Razer BlackShark V2 Pro", "Razer BlackShark V2 Pro Black"],
+  ["Razer Gigantus V2", "Razer Gigantus V2 L", "Razer Gigantus V2 M", "Razer Gigantus V2 XXL"],
+  ["Razer Huntsman V3 PRO", "Razer Huntsman V3 Pro", "Razer Huntsman V3 Pro Full Size"],
+  ["Razer Huntsman V3 PRO TKL", "Razer Huntsman V3 Pro TKL"],
+  ["Secretlab TITAN Evo", "Secretlab TITAN Evo T1 Edition", "Secretlab X T1 Gaming Chair"],
 ];
 
 export const GAMER_EQUIPMENT_FIELDS = [
@@ -308,6 +346,24 @@ function variantCoreKey(name: string): string {
     .join(" ");
 }
 
+/** Token-prefix match for edition/size variants without merging 2 vs 2s. */
+function familyPrefixMatch(a: string, b: string): boolean {
+  const tokensA = variantCoreKey(a).split(" ").filter(Boolean);
+  const tokensB = variantCoreKey(b).split(" ").filter(Boolean);
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const [shorter, longer] = tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+  if (shorter.length < 3) return false;
+
+  for (let i = 0; i < shorter.length; i++) {
+    if (shorter[i] !== longer[i]) return false;
+  }
+
+  const extra = longer.slice(shorter.length);
+  if (extra.length === 0) return true;
+  return extra.every((token) => SAFE_EXTRA_TOKENS.has(token));
+}
+
 function labelsShareEquivalentGroup(
   a: string,
   b: string,
@@ -356,6 +412,7 @@ export function equipmentLabelsMatch(
       const coreLeft = variantCoreKey(l);
       const coreRight = variantCoreKey(r);
       if (coreLeft.length >= 6 && coreLeft === coreRight) return true;
+      if (familyPrefixMatch(l, r)) return true;
 
       if (labelsShareEquivalentGroup(l, r, catalogKeys)) return true;
 
@@ -397,6 +454,12 @@ function collectEquivalentKeys(
       equivalents.add(member);
       const resolved = findCatalogKey(member, catalogKeys);
       if (resolved) equivalents.add(resolved);
+    }
+  }
+
+  for (const key of catalogKeys) {
+    if (equipmentLabelsMatch(key, targetKey, catalogKeys, keyToId)) {
+      equivalents.add(key);
     }
   }
 

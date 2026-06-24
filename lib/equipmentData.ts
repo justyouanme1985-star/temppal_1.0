@@ -1466,6 +1466,21 @@ export function getSupabaseEquipmentById(id: number): any | undefined {
   return supabaseEquipById[id];
 }
 
+/** Resolve Coupang Partners affiliate_url from Supabase catalog (by id or name). */
+export function resolveEquipmentAffiliateUrl(
+  category: string,
+  name: string,
+  catalogId?: number | null,
+): string | null {
+  if (catalogId != null) {
+    const byId = getSupabaseEquipmentById(catalogId);
+    if (byId?.affiliate_url) return byId.affiliate_url;
+  }
+  const byName = getSupabaseEquipmentSpec(category, name);
+  if (byName?.affiliate_url) return byName.affiliate_url;
+  return null;
+}
+
 /** Resolve player-side equipment label to canonical catalog key for URLs. */
 export function resolveEquipmentLinkKey(category: string, name: string): string {
   const cat = normalizeCategorySlug(category);
@@ -1562,23 +1577,6 @@ export function resolveEquipmentImageUrl(category: string, ...names: string[]): 
     const norm = normalizeEquipmentLabel(n);
     for (const [key, path] of Object.entries(equipmentImages)) {
       if (normalizeEquipmentLabel(key) === norm) return path;
-    }
-  }
-
-  const krLabel = categoryKrLabel[normalizeCategorySlug(category)];
-  if (krLabel) {
-    for (const n of uniqNames) {
-      const spec = getEquipmentSpec(krLabel, n);
-      if (spec?.image) return spec.image;
-    }
-    if (lookupKeys.length > 0) {
-      for (const n of uniqNames) {
-        const resolved = resolveCanonicalEquipmentKey(n, lookupKeys);
-        if (resolved) {
-          const spec = getEquipmentSpec(krLabel, resolved);
-          if (spec?.image) return spec.image;
-        }
-      }
     }
   }
 
@@ -1859,6 +1857,14 @@ export const equipmentImages: Record<string, string> = {
   "Zowie XL2566K": "/images/equipments/104002_XL2566K.webp",
   "ZOWIE XL2566X+": "/images/equipments/104015_zowie_xl2566x.webp",
   "ABKO Hacker K995P V3": "/images/equipments/102067_Abko Hacker K995P V3.webp",
+  "Razer DeathAdder V3 Pro Faker Edition": "/images/equipments/101027_DeathAdder_V3_PRO.webp",
+  "Razer DeathAdder V3 Pro": "/images/equipments/101027_DeathAdder_V3_PRO.webp",
+  "Razer BlackShark V2 Pro Black": "/images/equipments/103006_BlackShark_V2.webp",
+  "Razer BlackShark V2 Pro": "/images/equipments/103006_BlackShark_V2.webp",
+  "Razer Gigantus V2": "/images/equipments/105005_Gigantus_V2_M.webp",
+  "Razer Huntsman V3 Pro Full Size": "/images/equipments/102010_Huntsman_V3_PRO.webp",
+  "Razer Huntsman V3 Pro": "/images/equipments/102010_Huntsman_V3_PRO.webp",
+  "Secretlab TITAN Evo T1 Edition": "/images/equipments/106001_TITAN_Evo_T1_Edition.webp",
 };
 
 
