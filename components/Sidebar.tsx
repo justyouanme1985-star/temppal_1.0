@@ -21,6 +21,13 @@ const games = [
     image: "/images/game_logo/lol-icon.svg",
   },
   {
+    name: "스타크래프트",
+    href: "/starcraft",
+    icon: Zap,
+    color: "text-yellow-400",
+    image: "/images/game_logo/starcraft-icon.svg",
+  },
+  {
     name: "발로란트",
     href: "/valorant",
     icon: Target,
@@ -33,13 +40,6 @@ const games = [
     icon: Gamepad2,
     color: "text-purple-400",
     image: "/images/game_logo/battlegrounds-icon.svg",
-  },
-  {
-    name: "스타크래프트",
-    href: "/starcraft",
-    icon: Zap,
-    color: "text-yellow-400",
-    image: "/images/game_logo/starcraft-icon.svg",
   },
 ];
 
@@ -141,12 +141,12 @@ export default function Sidebar() {
               >
                 인기 장비 랭킹
               </button>
-              <a
-                href="#"
-                className="px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium"
+              <Link
+                href="/community"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium"
               >
                 커뮤니티
-              </a>
+              </Link>
             </div>
           </>
         )}

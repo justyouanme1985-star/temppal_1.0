@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink } from "@/lib/coupang";
+import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -161,7 +161,7 @@ export default function EquipmentPage({
 
   return (
     <div className="flex-1 overflow-y-auto pb-1.5">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Back Button */}
         <button
           onClick={() =>
@@ -179,7 +179,7 @@ export default function EquipmentPage({
         <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden mb-8">
           <div className="flex flex-col md:flex-row">
             {/* Equipment Image */}
-            <div className="w-full md:w-1/2 bg-zinc-50 dark:bg-zinc-900 p-8 flex items-center justify-center min-h-[300px]">
+            <div className="w-full md:w-1/2 bg-zinc-50 dark:bg-zinc-900 p-3 sm:p-8 flex items-center justify-center min-h-[160px] sm:min-h-[300px]">
               {spec && spec.image ? (
                 <Image
                   src={spec.image}
@@ -198,14 +198,14 @@ export default function EquipmentPage({
             </div>
 
             {/* Equipment Info */}
-            <div className="w-full md:w-1/2 p-6 flex flex-col">
+            <div className="w-full md:w-1/2 p-3 sm:p-6 flex flex-col">
               {/* Type badge */}
               <span className="inline-block text-xs font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-full w-fit mb-3">
                 {typeLabel}
               </span>
 
               {/* Name */}
-              <h1 className="text-xl font-bold text-zinc-900 dark:text-white mb-4">
+              <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4">
                 {spec ? `${spec.brand} ${spec.model}` : equipmentName}
               </h1>
 
@@ -287,23 +287,26 @@ export default function EquipmentPage({
                     href={spec.officialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2.5 rounded-lg transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 sm:py-2.5 rounded-lg transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
                     공식사이트
                   </a>
                 )}
-                <a
-                  href={coupangLink(
-                    spec ? `${spec.brand} ${spec.model}` : equipmentName,
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2.5 rounded-lg transition-colors"
+                <button
+                  onClick={() =>
+                    openCoupangLink(
+                      coupangLink(
+                        spec ? `${spec.brand} ${spec.model}` : equipmentName,
+                        spec?.affiliate_url,
+                      ),
+                    )
+                  }
+                  className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer"
                 >
                   <ShoppingCart className="w-4 h-4" />
                   득템
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -321,7 +324,7 @@ export default function EquipmentPage({
             이 장비를 사용하는 선수가 없습니다.
           </p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {players.map((player) => (
               <EquipmentPlayerCard key={player.id} player={player} />
             ))}

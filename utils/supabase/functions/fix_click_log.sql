@@ -144,6 +144,30 @@ BEGIN
     );
   END IF;
 
+  -- Recalculate total_weighted_points for this player
+  UPDATE gamers_info
+  SET total_weighted_points =
+      (COALESCE(count_player_recent, 0) * 17.5) +
+      (COALESCE(count_player_cumulative, 0) * 5) +
+      (COALESCE(count_items_recent, 0) * 3.5) +
+      (COALESCE(count_items_cumulative, 0) * 1)
+  WHERE id = p_player_id;
+
+  -- Recalculate admin_power_ranking for this player's game
+  WITH ranked AS (
+    SELECT id,
+      ROW_NUMBER() OVER (
+        PARTITION BY game
+        ORDER BY total_weighted_points DESC, id ASC
+      ) AS nr
+    FROM gamers_info
+    WHERE game = (SELECT game FROM gamers_info WHERE id = p_player_id)
+  )
+  UPDATE gamers_info g
+  SET admin_power_ranking = r.nr
+  FROM ranked r
+  WHERE g.id = r.id;
+
   RETURN v_result;
 END;
 $$;

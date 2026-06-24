@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
-import { coupangLink } from "@/lib/coupang";
+import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import { equipmentImages } from "@/lib/equipmentData";
 
 const typeLabelMap: Record<string, string> = {
@@ -66,6 +66,7 @@ interface EquipmentRankItem {
   model: string;
   category: string;
   officialUrl?: string;
+  affiliate_url?: string | null;
   weight?: string;
   connection?: string;
   size?: string;
@@ -134,6 +135,7 @@ export default function EquipmentRankingPage() {
           model: d.model,
           category: d.category,
           officialUrl: d.officialUrl,
+          affiliate_url: d.affiliate_url,
           weight: d.weight,
           connection: d.connection,
           size: d.size,
@@ -221,8 +223,8 @@ export default function EquipmentRankingPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-bold text-zinc-900 dark:text-white mb-4 text-center">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 text-center">
         인기 장비 랭킹
       </h1>
 
@@ -272,7 +274,7 @@ export default function EquipmentRankingPage() {
 
         return (
           <section key={cat} id={`cat-${cat}`} className="mb-10 scroll-mt-20">
-            <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 mb-3 flex items-center gap-2">
+            <h2 className="text-sm sm:text-base font-bold text-zinc-800 dark:text-zinc-200 mb-2 sm:mb-3 flex items-center gap-2">
               <span className="w-1 h-4 bg-blue-500 rounded-full" />
               {typeLabelMap[cat] || cat}
               <span className="text-xs font-normal text-zinc-400 dark:text-zinc-500">
@@ -280,7 +282,7 @@ export default function EquipmentRankingPage() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
               {visibleItems.map((item) => (
                 <EquipmentRankCard key={item.id} item={item} />
               ))}
@@ -315,19 +317,19 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
   return (
     <Link
       href={equipmentUrl}
-      className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
+      className="flex flex-col bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
     >
       {/* Top: Rank badge + Brand + Model */}
       <div className="px-2.5 pt-2 pb-1 space-y-0.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span
-            className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${
               item.popularity_rank === 1
-                ? "bg-yellow-400 text-yellow-900"
+                ? "bg-[#008bf2]"
                 : item.popularity_rank === 2
-                  ? "bg-zinc-300 text-zinc-700"
+                  ? "bg-[#00bba3]"
                   : item.popularity_rank === 3
-                    ? "bg-amber-600 text-white"
+                    ? "bg-[#e8a803]"
                     : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
             }`}
           >
@@ -343,7 +345,7 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
       </div>
 
       {/* Image */}
-      <div className="relative bg-zinc-50 dark:bg-zinc-900 p-2 flex items-center justify-center aspect-square">
+      <div className="relative bg-zinc-50 dark:bg-zinc-900 p-2 flex items-center justify-center aspect-square shrink-0">
         {imgSrc ? (
           <Image
             src={imgSrc}
@@ -409,10 +411,12 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
           {item.officialUrl && (
             <button
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 window.open(item.officialUrl, "_blank", "noopener,noreferrer");
               }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors cursor-pointer"
+              type="button"
             >
               <ExternalLink className="w-2.5 h-2.5" />
               공식사이트
@@ -420,15 +424,12 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
           )}
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
-              window.open(
-                `쿠팡에서 검색`,
-                coupangLink(item.key),
-                "_blank",
-                "noopener,noreferrer",
-              );
+              openCoupangLink(coupangLink(item.key, item.affiliate_url));
             }}
             className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer"
+            type="button"
           >
             <ShoppingCart className="w-2.5 h-2.5" />
             득템

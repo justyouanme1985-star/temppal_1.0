@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink } from "@/lib/coupang";
+import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -310,11 +310,13 @@ function EquipmentCard({
           {spec && spec.officialUrl && (
             <button
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleEquipmentBtnClick();
                 window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
               }}
               className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
+              type="button"
             >
               <ExternalLink className="w-3 h-3" />
               공식사이트
@@ -322,15 +324,18 @@ function EquipmentCard({
           )}
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               handleEquipmentBtnClick();
-              window.open(
-                coupangLink(spec ? `${spec.brand} ${spec.model}` : name),
-                "_blank",
-                "noopener,noreferrer",
+              openCoupangLink(
+                coupangLink(
+                  spec ? `${spec.brand} ${spec.model}` : name,
+                  spec?.affiliate_url,
+                ),
               );
             }}
             className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer"
+            type="button"
           >
             <ShoppingCart className="w-3 h-3" />
             득템

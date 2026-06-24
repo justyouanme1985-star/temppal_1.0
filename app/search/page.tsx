@@ -85,11 +85,15 @@ function SearchResults() {
         ) : scoredResults.length > 0 ? (
           <div className="grid gap-1">
             {scoredResults
-              .sort(
-                (a, b) =>
+              .sort((a, b) => {
+                // 검색 점수 높은 순 (정확 일치 = 최우선)
+                if (a.score !== b.score) return b.score - a.score;
+                // 동점이면 파워랭킹 순
+                return (
                   (a.player.powerRanking ?? 999) -
-                  (b.player.powerRanking ?? 999),
-              )
+                  (b.player.powerRanking ?? 999)
+                );
+              })
               .map(({ player }) => (
                 <PlayerCard key={player.id} player={player} />
               ))}

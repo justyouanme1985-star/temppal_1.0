@@ -9,7 +9,7 @@ import {
   getSupabaseEquipmentSpec,
   equipmentImages,
 } from "@/lib/equipmentData";
-import { coupangLink } from "@/lib/coupang";
+import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
   Mouse,
   Keyboard,
@@ -29,12 +29,19 @@ import {
 const equipmentIcons = [
   { key: "mouse", icon: Mouse, label: "마우스" },
   { key: "keyboard", icon: Keyboard, label: "키보드" },
-  { key: "headphone", icon: Headphones, label: "헤드셋" },
+  { key: "headset", icon: Headphones, label: "헤드셋" },
   { key: "mousepad", icon: RectangleHorizontal, label: "마우스패드" },
   { key: "monitor", icon: Monitor, label: "모니터" },
   { key: "chair", icon: ArmchairIcon, label: "의자" },
   { key: "desk", icon: MonitorIcon, label: "책상" },
 ];
+
+const gameAbbr: Record<string, string> = {
+  lol: "LCK",
+  starcraft: "스타",
+  valorant: "VCT",
+  battlegrounds: "배그",
+};
 
 interface PlayerCardProps {
   player: Player;
@@ -147,10 +154,15 @@ export default function PlayerCard({ player }: PlayerCardProps) {
       >
         {/* Rank Badge */}
         <div className="shrink-0 flex items-center w-12">
-          <div className="w-6 flex items-center justify-center shrink-0">
+          <div className="w-6 flex items-center justify-center shrink-0 flex-col leading-tight">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300">
-              {player.popularityRank}
+              {player.powerRanking ?? player.popularityRank}
             </span>
+            {player.powerRanking && (
+              <span className="text-[8px] text-zinc-400 dark:text-zinc-500 leading-none -mt-0.5">
+                {gameAbbr[player.game] || player.game}
+              </span>
+            )}
           </div>
           <div className="w-6 flex items-center justify-center shrink-0">
             {player.rankChange > 0 ? (
@@ -261,7 +273,10 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                   return (
                     <button
                       key={eq.key}
+                      type="button"
                       onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleEquipmentClick(
                           e,
                           eqData?.equipmentName || eq.label,
@@ -320,20 +335,25 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                 <X className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
-              {/* Image section */}
-              <div className="bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-40">
-                {popupEquip.imgSrc ? (
-                  <img
-                    src={popupEquip.imgSrc}
-                    alt={popupEquip.name}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-zinc-400 dark:text-zinc-600 text-sm">
-                    이미지 없음
-                  </span>
-                )}
-              </div>
+              {/* Image section - clickable to equipment detail */}
+              <Link
+                href={`/equipment/${popupEquip.typeKey}/${encodeURIComponent(popupEquip.name)}${player.dbId ? `?playerId=${player.dbId}` : ""}`}
+                onClick={() => setPopupEquip(null)}
+              >
+                <div className="bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-80 cursor-pointer">
+                  {popupEquip.imgSrc ? (
+                    <img
+                      src={popupEquip.imgSrc}
+                      alt={popupEquip.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-zinc-400 dark:text-zinc-600 text-sm">
+                      이미지 없음
+                    </span>
+                  )}
+                </div>
+              </Link>
 
               {/* Brand + Model */}
               <div className="px-4 pt-3 pb-1">
@@ -386,15 +406,6 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                     </span>
                   ));
                 })()}
-                {popupEquip.spec?.brand && popupEquip.spec?.model && (
-                  <Link
-                    href={`/equipment/${popupEquip.typeKey}/${encodeURIComponent(popupEquip.name)}${player.dbId ? `?playerId=${player.dbId}` : ""}`}
-                    className="text-[11px] text-blue-500 dark:text-blue-400 hover:underline ml-auto shrink-0"
-                    onClick={() => setPopupEquip(null)}
-                  >
-                    더보기 →
-                  </Link>
-                )}
               </div>
 
               {/* Action buttons: equal height */}
@@ -418,14 +429,13 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(
+                    openCoupangLink(
                       coupangLink(
                         popupEquip.spec
                           ? `${popupEquip.brand} ${popupEquip.model}`
                           : popupEquip.name,
+                        popupEquip.spec?.affiliate_url,
                       ),
-                      "_blank",
-                      "noopener,noreferrer",
                     );
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors"

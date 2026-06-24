@@ -16,6 +16,12 @@ const games = [
     logo: "/images/game_logo/lol-logo.svg",
   },
   {
+    name: "스타크래프트",
+    href: "/starcraft",
+    icon: "/images/game_logo/starcraft-icon.svg",
+    logo: "/images/game_logo/starcraft-logo.svg",
+  },
+  {
     name: "발로란트",
     href: "/valorant",
     icon: "/images/game_logo/valorant-icon.svg",
@@ -26,12 +32,6 @@ const games = [
     href: "/battlegrounds",
     icon: "/images/game_logo/battlegrounds-icon.svg",
     logo: "/images/game_logo/battlegrounds-logo.svg",
-  },
-  {
-    name: "스타크래프트",
-    href: "/starcraft",
-    icon: "/images/game_logo/starcraft-icon.svg",
-    logo: "/images/game_logo/starcraft-logo.svg",
   },
 ] as const;
 
@@ -233,6 +233,12 @@ export default function HomeClient({
         players={lolPlayers}
       />
       <PlayerSection
+        title="스타크래프트"
+        logo="/images/game_logo/starcraft-logo.svg"
+        href="/starcraft"
+        players={scPlayers}
+      />
+      <PlayerSection
         title="발로란트"
         logo="/images/game_logo/valorant-logo.svg"
         href="/valorant"
@@ -243,12 +249,6 @@ export default function HomeClient({
         logo="/images/game_logo/battlegrounds-logo.svg"
         href="/battlegrounds"
         players={bgPlayers}
-      />
-      <PlayerSection
-        title="스타크래프트"
-        logo="/images/game_logo/starcraft-logo.svg"
-        href="/starcraft"
-        players={scPlayers}
       />
     </main>
   );

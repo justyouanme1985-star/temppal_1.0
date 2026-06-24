@@ -26,31 +26,25 @@ ADD COLUMN IF NOT EXISTS popularity_rank INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS last_recent_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 ADD COLUMN IF NOT EXISTS currently_used INTEGER DEFAULT 0;
 
--- Step 3: Populate currently_used from gamers_info (fuzzy match)
+-- Step 3: Populate currently_used from gamers_info (exact case-insensitive match, current equipment only)
 DO $$
 DECLARE
   eq_rec RECORD;
   cnt INTEGER;
 BEGIN
   FOR eq_rec IN SELECT id, key FROM equipment_info LOOP
-    WITH player_equip AS (
-      SELECT DISTINCT LOWER(unnest(ARRAY[
-        g.mouse, g.keyboard, g.headset, g.monitor, g.mousepad, g.chair, g.desk,
-        g.previous_mouse, g.previous_keyboard, g.previous_mousepad
-      ])) AS equip_name
-      FROM gamers_info g
-      WHERE g.mouse IS NOT NULL OR g.keyboard IS NOT NULL OR g.headset IS NOT NULL
-         OR g.monitor IS NOT NULL OR g.mousepad IS NOT NULL OR g.chair IS NOT NULL
-         OR g.desk IS NOT NULL
-    )
     SELECT COUNT(*) INTO cnt
-    FROM player_equip
-    WHERE equip_name IS NOT NULL
-      AND (
-        equip_name = LOWER(eq_rec.key)
-        OR equip_name LIKE '%' || LOWER(eq_rec.key) || '%'
-        OR LOWER(eq_rec.key) LIKE '%' || equip_name || '%'
-      );
+    FROM (
+      SELECT g.id
+      FROM gamers_info g
+      WHERE LOWER(g.mouse) = LOWER(eq_rec.key)
+         OR LOWER(g.keyboard) = LOWER(eq_rec.key)
+         OR LOWER(g.headset) = LOWER(eq_rec.key)
+         OR LOWER(g.monitor) = LOWER(eq_rec.key)
+         OR LOWER(g.mousepad) = LOWER(eq_rec.key)
+         OR LOWER(g.chair) = LOWER(eq_rec.key)
+         OR LOWER(g.desk) = LOWER(eq_rec.key)
+    ) matched;
 
     UPDATE equipment_info
     SET currently_used = cnt
@@ -64,22 +58,12 @@ CREATE OR REPLACE FUNCTION on_equip_click_log_insert()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.click_type = 'equipment' AND NEW.equipment_name IS NOT NULL THEN
-    -- Try to find matching equipment_info row
+    -- Find matching equipment_info row (case-insensitive exact match only)
     UPDATE equipment_info 
     SET 
       count_items_recent = COALESCE(count_items_recent, 0) + 1,
       count_items_cumulative = COALESCE(count_items_cumulative, 0) + 1
     WHERE LOWER("key") = LOWER(NEW.equipment_name);
-    
-    -- If no exact match, try partial match
-    IF NOT FOUND THEN
-      UPDATE equipment_info 
-      SET 
-        count_items_recent = COALESCE(count_items_recent, 0) + 1,
-        count_items_cumulative = COALESCE(count_items_cumulative, 0) + 1
-      WHERE LOWER("key") LIKE '%' || LOWER(NEW.equipment_name) || '%'
-         OR LOWER(NEW.equipment_name) LIKE '%' || LOWER("key") || '%';
-    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -183,21 +167,18 @@ DECLARE
   cnt INTEGER;
 BEGIN
   FOR eq_rec IN SELECT id, key FROM equipment_info LOOP
-    WITH player_equip AS (
-      SELECT DISTINCT LOWER(unnest(ARRAY[
-        g.mouse, g.keyboard, g.headset, g.monitor, g.mousepad, g.chair, g.desk,
-        g.previous_mouse, g.previous_keyboard, g.previous_mousepad
-      ])) AS equip_name
-      FROM gamers_info g
-    )
     SELECT COUNT(*) INTO cnt
-    FROM player_equip
-    WHERE equip_name IS NOT NULL
-      AND (
-        equip_name = LOWER(eq_rec.key)
-        OR equip_name LIKE '%' || LOWER(eq_rec.key) || '%'
-        OR LOWER(eq_rec.key) LIKE '%' || equip_name || '%'
-      );
+    FROM (
+      SELECT g.id
+      FROM gamers_info g
+      WHERE LOWER(g.mouse) = LOWER(eq_rec.key)
+         OR LOWER(g.keyboard) = LOWER(eq_rec.key)
+         OR LOWER(g.headset) = LOWER(eq_rec.key)
+         OR LOWER(g.monitor) = LOWER(eq_rec.key)
+         OR LOWER(g.mousepad) = LOWER(eq_rec.key)
+         OR LOWER(g.chair) = LOWER(eq_rec.key)
+         OR LOWER(g.desk) = LOWER(eq_rec.key)
+    ) matched;
 
     UPDATE equipment_info
     SET currently_used = cnt

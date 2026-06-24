@@ -9,7 +9,7 @@ export function useSearchPlayers(query: string) {
     queryKey: ['players', 'search', query],
     queryFn: () => searchPlayers(query),
     enabled: query.trim().length > 0,
-    staleTime: 30 * 1000,
+    staleTime: 0,
   });
 }
 // ── Query keys (centralised for cache invalidation) ─────────────────────
@@ -24,12 +24,13 @@ export function useAllPlayers() {
   return useQuery({
     queryKey: playerKeys.lists(),
     queryFn: getAllPlayers,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 30 * 1000,
   });
 }
 
 // ── Fetch players filtered by game ──────────────────────────────────────
-const GAMES = ['lol', 'valorant', 'battlegrounds', 'starcraft'] as const;
+const GAMES = ['lol', 'starcraft', 'valorant', 'battlegrounds'] as const;
 export type Game = (typeof GAMES)[number];
 
 export function usePlayersByGame(game: Player['game']) {

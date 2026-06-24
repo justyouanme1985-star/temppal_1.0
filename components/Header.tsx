@@ -65,6 +65,7 @@ export default function Header() {
   const settingsRef = useRef<HTMLDivElement>(null);
   const updatesDropdownRef = useRef<HTMLDivElement>(null);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
+  const fetchedRef = useRef(false);
   const pathname = usePathname();
 
   // Set current time on client only (avoids Date.now() hydration mismatch)
@@ -74,14 +75,15 @@ export default function Header() {
 
   // Fetch recently updated players when dropdown opens
   useEffect(() => {
-    if (showUpdates && recentPlayers.length === 0 && !loadingUpdates) {
+    if (showUpdates && !fetchedRef.current && !loadingUpdates) {
+      fetchedRef.current = true;
       setLoadingUpdates(true);
       getRecentlyUpdatedPlayers().then((players) => {
         setRecentPlayers(players);
         setLoadingUpdates(false);
       });
     }
-  }, [showUpdates, recentPlayers.length, loadingUpdates]);
+  }, [showUpdates, loadingUpdates]);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -112,6 +114,7 @@ export default function Header() {
         !updatesDropdownRef.current.contains(e.target as Node)
       ) {
         setShowUpdates(false);
+        fetchedRef.current = false;
       }
       if (
         settingsRef.current &&
@@ -201,7 +204,7 @@ export default function Header() {
                       </div>
                     ) : recentPlayers.length === 0 ? (
                       <div className="px-4 py-8 text-sm text-zinc-400 dark:text-zinc-500 text-center">
-                        업데이트 내역이 없습니다.
+                        최근 업데이트가 없습니다.
                       </div>
                     ) : (
                       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">

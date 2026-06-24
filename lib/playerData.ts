@@ -284,21 +284,53 @@ function normalizeEquipName(name: string): string {
     .trim();
 }
 
-/** Find all players who use a specific equipment name (fuzzy match) */
+/** Find all players who use a specific equipment name (exact match via Supabase, no fuzzy) */
 export async function getPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
-  const all = await getAllPlayers();
-  const normQuery = normalizeEquipName(equipmentName);
+  const supabase = createSupabaseClient();
 
-  return all.filter((p) => {
-    const allEquip = [...p.equipment, ...p.previousEquipment];
-    return allEquip.some((e) => {
-      const normName = normalizeEquipName(e.equipmentName);
-      // Prefer exact match, fall back to substring match
-      if (normName === normQuery) return true;
-      if (normName.includes(normQuery) || normQuery.includes(normName)) return true;
-      return false;
-    });
+  // 1. Get the canonical key from equipment_info
+  const { data: equip } = await supabase
+    .from('equipment_info')
+    .select('key')
+    .ilike('key', equipmentName)
+    .maybeSingle();
+
+  if (!equip) return [];
+
+  const exactKey = equip.key;
+
+  // 2. Query gamers_info directly with exact case-insensitive match on current equipment columns only
+  const { data: rawPlayers } = await supabase
+    .from('gamers_info')
+    .select('*')
+    .or(
+      `mouse.ilike.${exactKey},keyboard.ilike.${exactKey},headset.ilike.${exactKey},monitor.ilike.${exactKey},mousepad.ilike.${exactKey},chair.ilike.${exactKey},desk.ilike.${exactKey}`
+    );
+
+  if (!rawPlayers || rawPlayers.length === 0) return [];
+
+  // 3. Dedupe by ign and map to Player
+  const seen = new Set<string>();
+  const result: Player[] = [];
+  for (const raw of rawPlayers) {
+    if (seen.has(raw.ign)) continue;
+    seen.add(raw.ign);
+    result.push(await mapRawToPlayer(raw));
+  }
+
+  // 4. Sort: 파워랭킹 → 파워점수 → 게임 순서(롤→스타→발로→배그)
+  const gameOrder: Record<string, number> = { lol: 0, starcraft: 1, valorant: 2, battlegrounds: 3 };
+  result.sort((a, b) => {
+    const aRank = a.powerRanking ?? 999;
+    const bRank = b.powerRanking ?? 999;
+    if (aRank !== bRank) return aRank - bRank;
+    const aScore = a.powerScore ?? 0;
+    const bScore = b.powerScore ?? 0;
+    if (bScore !== aScore) return bScore - aScore;
+    return (gameOrder[a.game] ?? 99) - (gameOrder[b.game] ?? 99);
   });
+
+  return result;
 }
 
 export async function getAllPlayers(): Promise<Player[]> {
@@ -319,9 +351,11 @@ export interface RecentlyUpdatedPlayer {
 
 export async function getRecentlyUpdatedPlayers(): Promise<RecentlyUpdatedPlayer[]> {
   const supabase = createSupabaseClient();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('gamers_info')
     .select('id, ign, name, game, updated, team')
+    .gte('updated', sevenDaysAgo)
     .order('updated', { ascending: false })
     .limit(20);
 

@@ -18,6 +18,7 @@ export default function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isComposingRef = useRef(false);
+  const pendingSubmitRef = useRef(false);
   const router = useRouter();
 
   const search = useCallback(async (q: string) => {
@@ -80,7 +81,7 @@ export default function SearchBar() {
     // Cancel any pending debounced search so it doesn't fire after navigation
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    const trimmed = query.trim();
+    const trimmed = (inputRef.current?.value || query).trim();
     console.log("submit query:", trimmed);
     if (!trimmed) return;
 
@@ -116,6 +117,10 @@ export default function SearchBar() {
       setSelectedIndex((prev) => Math.max(prev - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (isComposingRef.current) {
+        pendingSubmitRef.current = true; // IME 조합 끝나면 제출
+        return;
+      }
       handleSubmit();
     } else if (e.key === "Escape") {
       setResults([]);
@@ -164,7 +169,12 @@ export default function SearchBar() {
                 isComposingRef.current = false;
                 const val = e.currentTarget.value;
                 if (debounceRef.current) clearTimeout(debounceRef.current);
-                debounceRef.current = setTimeout(() => search(val), 300);
+                if (pendingSubmitRef.current) {
+                  pendingSubmitRef.current = false;
+                  handleSubmit();
+                } else {
+                  debounceRef.current = setTimeout(() => search(val), 300);
+                }
               }}
               placeholder="검색"
               className={`
