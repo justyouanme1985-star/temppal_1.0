@@ -1,4 +1,6 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { recalculateGameRankings } from "@/lib/ranking/recalculateGameRankings";
 import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
 const MIN_CLICK_INTERVAL_MS = 10_000;
@@ -66,6 +68,13 @@ export async function POST(
   if (error) {
     console.error("log_click RPC error:", error);
     return NextResponse.json({ error: "Click failed" }, { status: 500 });
+  }
+
+  try {
+    await recalculateGameRankings(supabase, numericId);
+    revalidatePath("/api/players");
+  } catch (recalcError) {
+    console.error("rank recalculation error:", recalcError);
   }
 
   return NextResponse.json({ ok: true, ...(data as Record<string, unknown>) });
