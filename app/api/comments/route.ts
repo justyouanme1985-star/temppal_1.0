@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { getClientIp } from "@/lib/security/clientIp";
 import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
 import {
@@ -110,9 +111,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { target_type, target_id, parent_id, author, content } = body;
+    const { target_type, target_id, parent_id, author, content, password } = body;
 
-    if (!target_type || !target_id || !author?.trim() || !content?.trim()) {
+    if (!target_type || !target_id || !author?.trim() || !content?.trim() || !password?.trim()) {
       return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 });
     }
     if (!["player", "equipment", "community"].includes(target_type)) {
@@ -121,11 +122,14 @@ export async function POST(req: NextRequest) {
     if (author.trim().length > 20) {
       return NextResponse.json({ error: "이름은 20자 이하로 입력해주세요." }, { status: 400 });
     }
+    if (password.trim().length > 50) {
+      return NextResponse.json({ error: "비밀번호는 50자 이하로 입력해주세요." }, { status: 400 });
+    }
     if (content.trim().length > 1500) {
       return NextResponse.json({ error: "내용은 1500자 이하로 입력해주세요." }, { status: 400 });
     }
 
-    const secretKey = crypto.randomUUID();
+    const secretKey = hashPassword(password.trim());
     const { supabase, error: configError } = getSupabaseOrError();
     if (configError || !supabase) return configError!;
 
@@ -154,7 +158,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { ...data, deleted: false, secret_key: secretKey },
+      { ...data, deleted: false },
       { status: 201 },
     );
   } catch {
@@ -189,7 +193,7 @@ export async function DELETE(req: NextRequest) {
       .eq("id", id)
       .single();
 
-    if (!comment || comment.secret_key !== secret_key) {
+    if (!comment || !verifyPassword(secret_key, comment.secret_key)) {
       return NextResponse.json({ error: "삭제 권한이 없습니다." }, { status: 403 });
     }
 
