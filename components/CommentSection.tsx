@@ -37,10 +37,6 @@ export function saveCommentKey(id: number, secretKey: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
 }
 
-export function canDeleteComment(id: number): boolean {
-  return !!getCommentKeys()[id];
-}
-
 export default function CommentSection({ targetType, targetId, title }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,22 +107,24 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
     }
   }
 
-  async function handleDelete(id: number) {
-    const keys = getCommentKeys();
-    const secretKey = keys[id];
-    if (!secretKey) return;
+  async function handleDelete(id: number, deletePassword: string) {
+    if (!deletePassword.trim()) return;
 
     setDeleting(id);
     try {
       const res = await fetch("/api/comments", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, secret_key: secretKey }),
+        body: JSON.stringify({ id, secret_key: deletePassword.trim() }),
       });
       if (!res.ok) {
         const data = await res.json();
         alert(data.error || "삭제 실패");
+        return;
       }
+      const keys = getCommentKeys();
+      delete keys[id];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
     } catch {}
     setDeleting(null);
     await loadComments();
@@ -176,15 +174,13 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
               targetId={targetId}
               onReplyComplete={loadComments}
               depth={0}
-              canDelete={canDeleteComment(c.id)}
               deleting={deleting}
-              onDelete={(id) => handleDelete(id)}
+              onDelete={handleDelete}
             />
           ))}
         </div>
       )}
 
-      {/* Write form — left: 닉네임/비밀번호, right: 내용 */}
       <CommentWriteForm
         author={author}
         password={password}
@@ -209,7 +205,6 @@ function CommentItem({
   targetId,
   onReplyComplete,
   depth,
-  canDelete,
   deleting,
   onDelete,
 }: {
@@ -220,11 +215,12 @@ function CommentItem({
   targetId: string;
   onReplyComplete: () => Promise<void>;
   depth: number;
-  canDelete: boolean;
   deleting?: number | null;
-  onDelete: (id: number) => void;
+  onDelete: (id: number, password: string) => void;
 }) {
   const [showReply, setShowReply] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const [replyAuthor, setReplyAuthor] = useState("");
   const [replyPassword, setReplyPassword] = useState("");
   const [replyContent, setReplyContent] = useState("");
@@ -232,6 +228,18 @@ function CommentItem({
   const replyComposeRef = useRef(false);
 
   const children = allComments.filter((c) => c.parent_id === comment.id);
+
+  function openDeleteForm() {
+    const saved = getCommentKeys()[comment.id];
+    setDeletePassword(saved || "");
+    setShowDelete(true);
+    setShowReply(false);
+  }
+
+  function closeDeleteForm() {
+    setShowDelete(false);
+    setDeletePassword("");
+  }
 
   return (
     <div
@@ -265,10 +273,47 @@ function CommentItem({
               </p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {canDelete && (
+              {showDelete ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="비밀번호"
+                    maxLength={50}
+                    className={`${depth > 0 ? "w-16 text-[10px] px-1.5 py-1" : "w-20 text-[11px] px-2 py-1"} border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-red-500`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && deletePassword.trim()) {
+                        onDelete(comment.id, deletePassword);
+                        closeDeleteForm();
+                      }
+                      if (e.key === "Escape") closeDeleteForm();
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDelete(comment.id, deletePassword);
+                      closeDeleteForm();
+                    }}
+                    disabled={deleting === comment.id || !deletePassword.trim()}
+                    className={`${depth > 0 ? "text-[10px] px-1.5 py-1" : "text-[11px] px-2 py-1"} font-medium text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors`}
+                  >
+                    {deleting === comment.id ? "..." : "삭제"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeDeleteForm}
+                    className={`${depth > 0 ? "text-[10px]" : "text-[11px]"} text-zinc-400 hover:text-zinc-600 transition-colors`}
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={() => onDelete(comment.id)}
-                  disabled={deleting === comment.id}
+                  type="button"
+                  onClick={openDeleteForm}
                   className="p-1 text-zinc-300 hover:text-red-500 transition-colors"
                   title="삭제"
                 >
@@ -276,7 +321,11 @@ function CommentItem({
                 </button>
               )}
               <button
-                onClick={() => setShowReply(!showReply)}
+                type="button"
+                onClick={() => {
+                  setShowReply(!showReply);
+                  setShowDelete(false);
+                }}
                 className="text-[11px] text-zinc-400 hover:text-blue-500 transition-colors"
               >
                 {showReply ? "취소" : "답글"}
@@ -284,7 +333,6 @@ function CommentItem({
             </div>
           </div>
 
-          {/* Inline reply form */}
           {showReply && (
             <div className="mt-2">
               <CommentWriteForm
@@ -332,7 +380,6 @@ function CommentItem({
         </div>
       )}
 
-      {/* Children */}
       {children.length > 0 && (
         <div className="space-y-1.5 mt-1.5 ml-1.5 pl-1.5 border-l-2 border-zinc-100 dark:border-zinc-700/50">
           {children.map((child) => (
@@ -345,7 +392,6 @@ function CommentItem({
               targetId={targetId}
               onReplyComplete={onReplyComplete}
               depth={depth + 1}
-              canDelete={canDeleteComment(child.id)}
               deleting={deleting}
               onDelete={onDelete}
             />
@@ -379,16 +425,17 @@ function CommentWriteForm({
   isComposingRef: React.RefObject<boolean>;
   compact?: boolean;
 }) {
+  const formHeight = compact ? "h-[52px]" : "h-[72px]";
   const sideWidth = compact ? "w-20" : "w-28";
   const fieldClass = compact
-    ? "w-full px-2 py-1 text-[10px] border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-    : "w-full px-2 py-1.5 text-[11px] border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
+    ? "w-full min-h-0 flex-1 px-2 text-[10px] leading-none border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+    : "w-full min-h-0 flex-1 px-2 text-[11px] leading-none border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const textareaClass = compact
-    ? "flex-1 min-h-[3.25rem] px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-    : "flex-1 min-h-[4.5rem] px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y";
+    ? "flex-1 h-full min-h-0 min-w-0 px-2 py-1.5 text-xs leading-snug border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+    : "flex-1 h-full min-h-0 min-w-0 px-3 py-2 text-sm leading-snug border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none";
   const buttonClass = compact
-    ? "shrink-0 self-end px-2.5 py-1.5 text-[11px] font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded transition-colors"
-    : "shrink-0 self-end px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded-lg transition-colors";
+    ? "shrink-0 h-full px-2.5 text-[11px] font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded transition-colors"
+    : "shrink-0 h-full px-4 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded-lg transition-colors";
 
   const canSubmit =
     author.trim().length > 0 &&
@@ -396,8 +443,11 @@ function CommentWriteForm({
     content.trim().length > 0;
 
   return (
-    <form onSubmit={onSubmit} className="flex items-stretch gap-2">
-      <div className={`flex flex-col gap-1 shrink-0 ${sideWidth}`}>
+    <form
+      onSubmit={onSubmit}
+      className={`flex items-stretch gap-2 ${formHeight}`}
+    >
+      <div className={`flex flex-col gap-1 shrink-0 h-full ${sideWidth}`}>
         <input
           type="text"
           value={author}
@@ -432,7 +482,6 @@ function CommentWriteForm({
           e.currentTarget.form?.requestSubmit();
         }}
         placeholder="내용"
-        rows={compact ? 2 : 3}
         maxLength={1500}
         className={textareaClass}
         required
