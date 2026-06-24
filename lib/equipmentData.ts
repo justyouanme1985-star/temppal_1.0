@@ -1481,7 +1481,7 @@ export function resolveEquipmentLinkKey(category: string, name: string): string 
     return resolveCanonicalEquipmentKey(name, allKeys) ?? name;
   }
 
-  const staticKeys = getStaticDbKeysForCategory(category);
+  const staticKeys = getStaticCatalogKeysForCategory(category);
   if (staticKeys.length > 0) {
     return resolveCanonicalEquipmentKey(name, staticKeys) ?? name;
   }
@@ -1499,7 +1499,7 @@ const categoryKrLabel: Record<string, string> = {
   desk: "책상",
 };
 
-function getStaticDbKeysForCategory(category: string): string[] {
+export function getStaticCatalogKeysForCategory(category: string): string[] {
   const kr = categoryKrLabel[normalizeCategorySlug(category)];
   if (!kr) return [];
   switch (kr) {
@@ -1549,7 +1549,7 @@ export function resolveEquipmentImageUrl(category: string, ...names: string[]): 
   }
 
   const lookupKeys = [
-    ...new Set([...getAllCatalogKeys(), ...getStaticDbKeysForCategory(category)]),
+    ...new Set([...getAllCatalogKeys(), ...getStaticCatalogKeysForCategory(category)]),
   ];
 
   for (const n of uniqNames) {

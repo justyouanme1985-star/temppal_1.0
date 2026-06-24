@@ -16,6 +16,7 @@ const BRAND_TRANSLATIONS: Record<string, string> = {
   조위기어: "zowie",
   엑스트리파이: "xtrfy",
   하이퍼엑스: "hyperx",
+  아티isan: "artisan",
   아티zan: "artisan",
   제닉스: "genesis",
   필co: "filco",
@@ -59,7 +60,30 @@ const WORD_TRANSLATIONS: Record<string, string> = {
   기간투스: "goliathus",
   스트라이더: "strider",
   클라우드: "cloud",
+  단패드: "qck",
+  장패드: "qck",
+  중패드: "p sr",
 };
+
+/** Decorative tokens stripped for variant matching (never strip l/m/xxl — different SKUs). */
+const VARIANT_TOKENS = new Set([
+  "black",
+  "white",
+  "original",
+  "gaming",
+  "mousepad",
+  "pad",
+  "cloth",
+  "clotch",
+  "mechanical",
+  "keyboard",
+  "headset",
+  "wireless",
+  "wired",
+  "edition",
+  "large",
+  "extended",
+]);
 
 /** Alternate spellings / Korean labels → canonical equipment_info.key */
 export const EQUIPMENT_ALIASES: Record<string, string> = {
@@ -81,6 +105,8 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   "superlight x 2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g102": "Logitech G102",
   "로지텍 g640": "Logitech G640",
+  "logitech g640 black": "Logitech G640",
+  "logitech g640 original": "Logitech G640",
   "로지텍 미니옵": "Logitech G Pro",
   "로지텍 g pro (검정색)": "Logitech G Pro Gaming Mouse",
 
@@ -99,8 +125,10 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
 
   // Razer headset / mousepad
   "레이저 블랙샤크 v2": "Razer BlackShark V2",
-  "레이저 기간투스 v2": "Razer Goliathus V2",
-  "레이저 스트라이더": "Razer Strider",
+  "레이저 기간투스 v2": "Razer Gigantus V2 L",
+  "레이저 스트라이더": "Razer Strider L",
+  "razer 단패드": "Razer Gigantus V2 M",
+  "razer 장패드": "Razer Gigantus V2 XXL",
 
   // Zowie
   "조위 ec2-cw": "Zowie EC2-CW",
@@ -108,6 +136,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   "조위기어 미코 마우스 kt": "Zowie MiCO",
   "조위 g-sr ii": "Zowie G-SR II",
   "조위 g-sr-se": "Zowie G-SR-SE",
+  "benq 중패드": "Zowie P-SR",
 
   // Other mice
   "카카 fk mini3": "VAXEE XE Wireless Yellow",
@@ -138,6 +167,9 @@ const CATALOG_KEY_EQUIVALENTS: string[][] = [
   ["ASTRO A50", "Logitech ASTRO A50"],
   ["Logitech G Pro X Superlight 2", "Logitech G PRO X SUPERLIGHT 2"],
   ["Logitech G Pro X2 Superlight", "Logitech G PRO X SUPERLIGHT 2"],
+  ["Logitech G640", "Logitech G640 Black", "Logitech G640 Original", "로지텍 G640"],
+  ["Logitech G Pro X TKL Keyboard Black", "Logitech G PRO X TKL", "Logitech G Pro X TKL"],
+  ["Logitech G Pro Wireless", "Logitech G Pro X Wireless Lightspeed"],
 ];
 
 export const GAMER_EQUIPMENT_FIELDS = [
@@ -269,6 +301,80 @@ export function equipmentValueMatchesKey(value: string, canonicalKey: string): b
   return false;
 }
 
+function variantCoreKey(name: string): string {
+  return normalizeEquipmentName(name)
+    .split(" ")
+    .filter((token) => token && !VARIANT_TOKENS.has(token))
+    .join(" ");
+}
+
+function labelsShareEquivalentGroup(
+  a: string,
+  b: string,
+  catalogKeys: string[],
+): boolean {
+  for (const group of CATALOG_KEY_EQUIVALENTS) {
+    const aInGroup = group.some((member) => equipmentValueMatchesKey(member, a));
+    const bInGroup = group.some((member) => equipmentValueMatchesKey(member, b));
+    if (aInGroup && bInGroup) return true;
+  }
+
+  const resolvedA = findCatalogKey(a, catalogKeys);
+  const resolvedB = findCatalogKey(b, catalogKeys);
+  if (resolvedA && resolvedB && equipmentValueMatchesKey(resolvedA, resolvedB)) return true;
+
+  return false;
+}
+
+function collectLabelCandidates(label: string, catalogKeys: string[]): Set<string> {
+  const out = new Set<string>([label.trim()]);
+  const resolved = resolveCanonicalEquipmentKey(label, catalogKeys);
+  if (resolved) out.add(resolved);
+  const found = findCatalogKey(label, catalogKeys);
+  if (found) out.add(found);
+  return out;
+}
+
+/** Compare two equipment labels across normalization, aliases, variants, and catalog ids. */
+export function equipmentLabelsMatch(
+  a: string,
+  b: string,
+  catalogKeys: string[],
+  keyToId?: Map<string, number>,
+): boolean {
+  const left = a.trim();
+  const right = b.trim();
+  if (!left || !right) return false;
+
+  const leftCandidates = collectLabelCandidates(left, catalogKeys);
+  const rightCandidates = collectLabelCandidates(right, catalogKeys);
+
+  for (const l of leftCandidates) {
+    for (const r of rightCandidates) {
+      if (equipmentValueMatchesKey(l, r)) return true;
+
+      const coreLeft = variantCoreKey(l);
+      const coreRight = variantCoreKey(r);
+      if (coreLeft.length >= 6 && coreLeft === coreRight) return true;
+
+      if (labelsShareEquivalentGroup(l, r, catalogKeys)) return true;
+
+      const resolvedLeft = resolveCanonicalEquipmentKey(l, catalogKeys) ?? findCatalogKey(l, catalogKeys);
+      const resolvedRight = resolveCanonicalEquipmentKey(r, catalogKeys) ?? findCatalogKey(r, catalogKeys);
+      if (
+        resolvedLeft &&
+        resolvedRight &&
+        keyToId?.get(resolvedLeft) != null &&
+        keyToId.get(resolvedLeft) === keyToId.get(resolvedRight)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function collectEquivalentKeys(
   targetKey: string,
   catalogKeys: string[],
@@ -304,6 +410,7 @@ export function playerUsesEquipment(
   equipmentId?: number | null,
   category?: string,
   keyToId?: Map<string, number>,
+  searchNames: string[] = [],
 ): boolean {
   if (equipmentId != null) {
     const idColumn = category ? categoryToIdColumn(category) : null;
@@ -325,6 +432,14 @@ export function playerUsesEquipment(
 
   const targetResolved = resolveCanonicalEquipmentKey(canonicalKey, catalogKeys) ?? canonicalKey;
   const matchKeys = collectEquivalentKeys(targetResolved, catalogKeys, keyToId);
+  for (const name of searchNames) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+    matchKeys.add(trimmed);
+    const resolved = resolveCanonicalEquipmentKey(trimmed, catalogKeys);
+    if (resolved) matchKeys.add(resolved);
+  }
+
   const fields = category
     ? GAMER_EQUIPMENT_FIELDS.filter((field) => EQUIPMENT_FIELD_TO_CATEGORY[field] === category)
     : GAMER_EQUIPMENT_FIELDS;
@@ -334,14 +449,7 @@ export function playerUsesEquipment(
     if (typeof value !== "string" || !value.trim()) continue;
 
     for (const matchKey of matchKeys) {
-      if (equipmentValueMatchesKey(value, matchKey)) return true;
-    }
-
-    const resolved = resolveCanonicalEquipmentKey(value, catalogKeys);
-    if (resolved) {
-      for (const matchKey of matchKeys) {
-        if (equipmentValueMatchesKey(resolved, matchKey)) return true;
-      }
+      if (equipmentLabelsMatch(value, matchKey, catalogKeys, keyToId)) return true;
     }
   }
 

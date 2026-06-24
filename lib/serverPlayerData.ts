@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  equipmentLabelsMatch,
   normalizeEquipmentName,
   playerUsesEquipment,
   resolveCanonicalEquipmentKey,
 } from './equipment/matchEquipment';
+import { getStaticCatalogKeysForCategory } from './equipmentData';
 import {
   dedupeAndRank,
   mapRawToPlayer,
@@ -64,21 +66,28 @@ export async function getServerPlayersByEquipmentName(
   }
 
   const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
+  const staticKeys = category ? getStaticCatalogKeysForCategory(category) : [];
+  const allKeys = [...new Set([...keys, ...staticKeys])];
   const keyToId = new Map<string, number>();
   for (const row of equipmentRows ?? []) {
     if (row.key && typeof row.id === "number") keyToId.set(row.key, row.id);
   }
 
-  let canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
-  if (!canonicalKey) {
-    const deep = normalizeEquipmentName(equipmentName);
-    canonicalKey = keys.find((key) => normalizeEquipmentName(key) === deep) ?? null;
-  }
-  if (!canonicalKey) return [];
+  let canonicalKey =
+    resolveCanonicalEquipmentKey(equipmentName, allKeys) ??
+    (() => {
+      const deep = normalizeEquipmentName(equipmentName);
+      return allKeys.find((key) => normalizeEquipmentName(key) === deep) ?? equipmentName.trim();
+    })();
 
-  const equipRow = (equipmentRows ?? []).find((row) => row.key === canonicalKey);
+  const equipRow =
+    (equipmentRows ?? []).find((row) => row.key === canonicalKey) ??
+    (equipmentRows ?? []).find((row) =>
+      equipmentLabelsMatch(row.key, canonicalKey, allKeys, keyToId),
+    );
   const equipmentId = equipRow?.id ?? null;
   const equipCategory = (equipRow?.category || category || '').toLowerCase() || undefined;
+  const searchNames = [...new Set([equipmentName.trim(), canonicalKey])];
 
   const { data: rawPlayers, error: playersError } = await supabase
     .from('gamers_info')
@@ -95,7 +104,9 @@ export async function getServerPlayersByEquipmentName(
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey, keys, equipmentId, equipCategory, keyToId)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey, allKeys, equipmentId, equipCategory, keyToId, searchNames)) {
+      continue;
+    }
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));
