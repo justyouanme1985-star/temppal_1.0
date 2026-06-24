@@ -131,6 +131,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   "로지텍 g x superlight3 / 로지텍 g pro x superlight2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g x superlight4": "Logitech G PRO X SUPERLIGHT 2",
   "logitech g pro x2 superlight": "Logitech G PRO X SUPERLIGHT 2",
+  "logitech g pro x superlight 2 se": "Logitech G PRO X SUPERLIGHT 2",
   "superlight x2": "Logitech G PRO X SUPERLIGHT 2",
   "superlight x 2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g102": "Logitech G102",
@@ -142,6 +143,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
 
   // Logitech headset
   "로지텍 g pro x 2": "Logitech G PRO X 2",
+  "logitech g pro x 2 headset black": "Logitech G PRO X 2",
   "logitech g pro wireless": "Logitech G Pro X Wireless Lightspeed",
 
   // Razer mice
@@ -156,6 +158,9 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
 
   // Razer headset / mousepad
   "레이저 블랙샤크 v2": "Razer BlackShark V2",
+  "레이저 블랙샤크 v3 프로": "Razer BlackShark V3 PRO",
+  "razer blackshark v3 pro black": "Razer BlackShark V3 PRO",
+  "razer blackshark v3 pro white": "Razer BlackShark V3 PRO White",
   "레이저 기간투스 v2": "Razer Gigantus V2 L",
   "레이저 스트라이더": "Razer Strider L",
   "razer 단패드": "Razer Gigantus V2 M",
@@ -198,12 +203,25 @@ const CATALOG_KEY_EQUIVALENTS: string[][] = [
   ["ASTRO A50", "Logitech ASTRO A50"],
   ["Logitech G Pro X Superlight 2", "Logitech G PRO X SUPERLIGHT 2"],
   ["Logitech G Pro X2 Superlight", "Logitech G PRO X SUPERLIGHT 2"],
+  [
+    "Logitech G PRO X SUPERLIGHT 2",
+    "Logitech G PRO X SUPERLIGHT 2 SE",
+    "Logitech G Pro X Superlight 2 SE",
+  ],
+  ["Logitech G PRO X 2", "Logitech G PRO X 2 Headset Black", "로지텍 G PRO X 2"],
   ["Logitech G640", "Logitech G640 Black", "Logitech G640 Original", "로지텍 G640"],
   ["Logitech G Pro X TKL Keyboard Black", "Logitech G PRO X TKL", "Logitech G Pro X TKL"],
   ["Logitech G Pro Wireless", "Logitech G Pro X Wireless Lightspeed"],
   ["Razer DeathAdder V3 PRO", "Razer DeathAdder V3 Pro", "Razer DeathAdder V3 Pro Faker Edition"],
   ["Razer Deathadder V3 Pro", "Razer DeathAdder V3 PRO"],
   ["Razer BlackShark V2 PRO", "Razer BlackShark V2 Pro", "Razer BlackShark V2 Pro Black"],
+  [
+    "Razer BlackShark V3 PRO",
+    "Razer BlackShark V3 Pro",
+    "Razer BlackShark V3 Pro Black",
+    "Razer BlackShark V3 PRO White",
+    "Razer BlackShark V3 Pro White",
+  ],
   ["Razer Gigantus V2", "Razer Gigantus V2 L", "Razer Gigantus V2 M", "Razer Gigantus V2 XXL"],
   ["Razer Huntsman V3 PRO", "Razer Huntsman V3 Pro", "Razer Huntsman V3 Pro Full Size"],
   ["Razer Huntsman V3 PRO TKL", "Razer Huntsman V3 Pro TKL"],

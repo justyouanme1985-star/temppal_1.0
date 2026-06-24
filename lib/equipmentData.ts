@@ -1,7 +1,11 @@
 // Auto-generated equipment database
 // Generated: 2026-04-03
 
-import { normalizeEquipmentLabel, resolveCanonicalEquipmentKey } from "./equipment/matchEquipment";
+import {
+  normalizeEquipmentLabel,
+  resolveCanonicalEquipmentKey,
+  equipmentLabelsMatch,
+} from "./equipment/matchEquipment";
 
 export interface MouseSpec {
   brand: string;
@@ -1410,6 +1414,55 @@ function getAllCatalogKeys(): string[] {
   return Object.keys(supabaseEquipByKey);
 }
 
+function buildCategoryKeyToId(
+  catCache: Record<string, any> | undefined,
+): Map<string, number> {
+  const keyToId = new Map<string, number>();
+  if (!catCache) return keyToId;
+  for (const [key, row] of Object.entries(catCache)) {
+    if (typeof row?.id === "number") keyToId.set(key, row.id);
+  }
+  return keyToId;
+}
+
+/** Fuzzy match player/catalog labels (edition, color, Korean variants). */
+function findFuzzyCatalogRow(
+  category: string,
+  name: string,
+): { key: string; row: any } | undefined {
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  if (!catCache) return undefined;
+
+  const catalogKeys = Object.keys(catCache);
+  const keyToId = buildCategoryKeyToId(catCache);
+
+  for (const catalogKey of catalogKeys) {
+    if (equipmentLabelsMatch(name, catalogKey, catalogKeys, keyToId)) {
+      return { key: catalogKey, row: catCache[catalogKey] };
+    }
+  }
+
+  return undefined;
+}
+
+function findAffiliateInCatalog(category: string, name: string): string | null {
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  if (!catCache) return null;
+
+  const catalogKeys = Object.keys(catCache);
+  const keyToId = buildCategoryKeyToId(catCache);
+
+  for (const catalogKey of catalogKeys) {
+    if (!equipmentLabelsMatch(name, catalogKey, catalogKeys, keyToId)) continue;
+    const url = pickAffiliateUrl(catCache[catalogKey]);
+    if (url) return url;
+  }
+
+  return null;
+}
+
 function createSupabaseClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1459,7 +1512,10 @@ export function getSupabaseEquipmentSpec(category: string, key: string): any | u
   }
 
   const exactKey = allKeys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
-  return exactKey ? supabaseEquipByKey[exactKey] : undefined;
+  if (exactKey) return supabaseEquipByKey[exactKey];
+
+  const fuzzy = findFuzzyCatalogRow(category, key);
+  return fuzzy?.row;
 }
 
 export function getSupabaseEquipmentById(id: number): any | undefined {
@@ -1478,12 +1534,19 @@ export function resolveEquipmentAffiliateUrl(
   catalogId?: number | null,
 ): string | null {
   if (catalogId != null) {
-    const byId = pickAffiliateUrl(getSupabaseEquipmentById(catalogId));
+    const byIdRow = getSupabaseEquipmentById(catalogId);
+    const byId = pickAffiliateUrl(byIdRow);
     if (byId) return byId;
+    if (byIdRow?.key) {
+      const fromKey = findAffiliateInCatalog(category, byIdRow.key);
+      if (fromKey) return fromKey;
+    }
   }
+
   const byName = pickAffiliateUrl(getSupabaseEquipmentSpec(category, name));
   if (byName) return byName;
-  return null;
+
+  return findAffiliateInCatalog(category, name);
 }
 
 /** Resolve player-side equipment label to canonical catalog key for URLs. */

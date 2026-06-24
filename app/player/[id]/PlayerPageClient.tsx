@@ -65,8 +65,10 @@ function EquipmentCard({
         if (mounted) setLoading(false);
         return;
       }
-      let raw = getSupabaseEquipmentSpec(typeKey, name);
       let linkKey = resolveEquipmentLinkKey(typeKey, name);
+      let raw =
+        getSupabaseEquipmentSpec(typeKey, name) ??
+        getSupabaseEquipmentSpec(typeKey, linkKey);
       if (equipmentCatalogId) {
         const byId = getSupabaseEquipmentById(equipmentCatalogId);
         if (byId?.key) linkKey = byId.key;
