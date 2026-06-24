@@ -52,13 +52,19 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
 
   const loadComments = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch(
         `/api/comments?type=${targetType}&id=${encodeURIComponent(targetId)}`,
       );
-      if (res.ok) setComments(await res.json());
+      if (res.ok) {
+        setComments(await res.json());
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "댓글을 불러오지 못했습니다.");
+      }
     } catch {
-      /* ignore */
+      setError("댓글을 불러오지 못했습니다.");
     }
     setLoading(false);
   }, [targetType, targetId]);

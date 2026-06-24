@@ -1,24 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp } from "@/lib/security/clientIp";
 import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
-import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
+import {
+  getSupabaseAdmin,
+  isSupabaseAdminConfigured,
+} from "@/lib/security/supabaseAdmin";
 
-const PUBLIC_COMMENT_COLUMNS =
-  "id, target_type, target_id, parent_id, author, content, created_at, updated_at, deleted";
+// Base columns always present on comments table
+const BASE_COMMENT_COLUMNS =
+  "id, target_type, target_id, parent_id, author, content, created_at, updated_at";
 
 const POST_LIMIT = 30;
 const DELETE_LIMIT = 60;
 const WINDOW_MS = 60 * 60 * 1000;
 
+function configErrorResponse() {
+  console.error(
+    "comments API: SUPABASE_SERVICE_ROLE_KEY is missing — set it in Vercel/host env",
+  );
+  return NextResponse.json(
+    { error: "댓글 서버 설정 오류입니다. 관리자에게 문의해주세요." },
+    { status: 503 },
+  );
+}
+
 function getSupabaseOrError() {
+  if (!isSupabaseAdminConfigured()) {
+    return { supabase: null, error: configErrorResponse() };
+  }
   try {
     return { supabase: getSupabaseAdmin(), error: null as NextResponse | null };
-  } catch {
-    return {
-      supabase: null,
-      error: NextResponse.json({ error: "서버 설정 오류입니다." }, { status: 503 }),
-    };
+  } catch (err) {
+    console.error("comments API: failed to create Supabase admin client", err);
+    return { supabase: null, error: configErrorResponse() };
   }
+}
+
+/** Read comments; falls back if optional `deleted` column is absent. */
+async function selectComments(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  targetType: string,
+  targetId: string,
+) {
+  const withDeleted = `${BASE_COMMENT_COLUMNS}, deleted`;
+  const primary = await supabase
+    .from("comments")
+    .select(withDeleted)
+    .eq("target_type", targetType)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: true });
+
+  if (
+    !primary.error ||
+    (!primary.error.message.includes("deleted") &&
+      primary.error.code !== "42703")
+  ) {
+    return primary;
+  }
+
+  const fallback = await supabase
+    .from("comments")
+    .select(BASE_COMMENT_COLUMNS)
+    .eq("target_type", targetType)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: true });
+
+  if (fallback.data) {
+    fallback.data = fallback.data.map((row) => ({ ...row, deleted: false }));
+  }
+
+  return fallback;
 }
 
 export async function GET(req: NextRequest) {
@@ -33,19 +84,14 @@ export async function GET(req: NextRequest) {
   const { supabase, error: configError } = getSupabaseOrError();
   if (configError || !supabase) return configError!;
 
-  const { data, error } = await supabase
-    .from("comments")
-    .select(PUBLIC_COMMENT_COLUMNS)
-    .eq("target_type", targetType)
-    .eq("target_id", targetId)
-    .order("created_at", { ascending: true });
+  const { data, error } = await selectComments(supabase, targetType, targetId);
 
   if (error) {
     console.error("comments GET error:", error);
     return NextResponse.json({ error: "댓글을 불러오지 못했습니다." }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(data ?? []);
 }
 
 export async function POST(req: NextRequest) {
@@ -89,15 +135,24 @@ export async function POST(req: NextRequest) {
         content: content.trim(),
         secret_key: secretKey,
       }])
-      .select(PUBLIC_COMMENT_COLUMNS)
+      .select(BASE_COMMENT_COLUMNS)
       .single();
 
     if (error) {
       console.error("comments POST error:", error);
+      if (error.message.includes("comments_target_type_check")) {
+        return NextResponse.json(
+          { error: "댓글 유형 설정 오류입니다. DB 마이그레이션이 필요합니다." },
+          { status: 500 },
+        );
+      }
       return NextResponse.json({ error: "댓글 작성에 실패했습니다." }, { status: 500 });
     }
 
-    return NextResponse.json({ ...data, secret_key: secretKey }, { status: 201 });
+    return NextResponse.json(
+      { ...data, deleted: false, secret_key: secretKey },
+      { status: 201 },
+    );
   } catch {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
