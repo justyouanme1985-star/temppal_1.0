@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import PlayerPageClient from "@/components/PlayerPageClient";
+import { buildPlayerPageJsonLd } from "@/lib/jsonLd/player";
 import { buildPlayerPageMetadata } from "@/lib/playerSeo";
 import { getServerPlayerById } from "@/lib/serverPlayerData";
 
@@ -29,5 +31,12 @@ export default async function PlayerPage({ params }: PageProps) {
     notFound();
   }
 
-  return <PlayerPageClient player={player} />;
+  const jsonLd = buildPlayerPageJsonLd(player);
+
+  return (
+    <>
+      <JsonLd data={jsonLd} />
+      <PlayerPageClient player={player} />
+    </>
+  );
 }

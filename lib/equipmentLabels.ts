@@ -8,6 +8,10 @@ export const EQUIPMENT_TYPE_LABELS: Record<string, string> = {
   desk: "책상",
 };
 
+export const EQUIPMENT_CATEGORY_KEYS = Object.keys(
+  EQUIPMENT_TYPE_LABELS,
+) as (keyof typeof EQUIPMENT_TYPE_LABELS)[];
+
 export function getEquipmentTypeLabel(typeKey: string): string {
   return EQUIPMENT_TYPE_LABELS[typeKey] || typeKey;
 }

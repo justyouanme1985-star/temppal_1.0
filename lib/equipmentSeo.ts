@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { withEquipmentIndexing } from "./indexing";
 import type { EquipmentPageData } from "./serverEquipmentData";
 
 const DEFAULT_OG_IMAGE = "/images/banner.svg";
@@ -112,30 +113,33 @@ export function buildEquipmentPageMetadata(data: EquipmentPageData): Metadata {
   const ogImage = resolveOgImage(data);
   const canonicalPath = `/equipment/${data.typeKey}/${encodeURIComponent(data.equipmentName)}`;
 
-  return {
-    title: {
-      absolute: buildGoogleTitle(data),
+  return withEquipmentIndexing(
+    {
+      title: {
+        absolute: buildGoogleTitle(data),
+      },
+      description,
+      alternates: {
+        canonical: canonicalPath,
+      },
+      openGraph: {
+        title: ogTitle,
+        description: ogDescription,
+        type: "website",
+        images: [
+          {
+            url: ogImage,
+            alt: displayName(data),
+          },
+        ],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: ogTitle,
+        description: ogDescription,
+        images: [ogImage],
+      },
     },
-    description,
-    alternates: {
-      canonical: canonicalPath,
-    },
-    openGraph: {
-      title: ogTitle,
-      description: ogDescription,
-      type: "website",
-      images: [
-        {
-          url: ogImage,
-          alt: displayName(data),
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: ogTitle,
-      description: ogDescription,
-      images: [ogImage],
-    },
-  };
+    data,
+  );
 }

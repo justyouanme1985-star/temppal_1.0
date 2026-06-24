@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { Player } from "./playerMapping";
+import { withPlayerIndexing } from "./indexing";
 
 const GAME_LABELS: Record<string, string> = {
   lol: "리그 오브 레전드",
@@ -68,30 +69,33 @@ export function buildPlayerPageMetadata(player: Player): Metadata {
   const ogDescription = buildOgDescription(player);
   const ogImage = resolveOgImage(player);
 
-  return {
-    title: {
-      absolute: buildGoogleTitle(player),
+  return withPlayerIndexing(
+    {
+      title: {
+        absolute: buildGoogleTitle(player),
+      },
+      description,
+      alternates: {
+        canonical: `/player/${player.id}`,
+      },
+      openGraph: {
+        title: ogTitle,
+        description: ogDescription,
+        type: "profile",
+        images: [
+          {
+            url: ogImage,
+            alt: `${player.playerName} 프로필`,
+          },
+        ],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: ogTitle,
+        description: ogDescription,
+        images: [ogImage],
+      },
     },
-    description,
-    alternates: {
-      canonical: `/player/${player.id}`,
-    },
-    openGraph: {
-      title: ogTitle,
-      description: ogDescription,
-      type: "profile",
-      images: [
-        {
-          url: ogImage,
-          alt: `${player.playerName} 프로필`,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: ogTitle,
-      description: ogDescription,
-      images: [ogImage],
-    },
-  };
+    player,
+  );
 }

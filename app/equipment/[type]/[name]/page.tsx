@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import EquipmentPageClient from "@/components/EquipmentPageClient";
 import { buildEquipmentPageMetadata } from "@/lib/equipmentSeo";
 import { isValidEquipmentType } from "@/lib/equipmentLabels";
+import { buildEquipmentPageJsonLd } from "@/lib/jsonLd/equipment";
 import { getServerEquipmentPageData } from "@/lib/serverEquipmentData";
 
 export const revalidate = 60;
@@ -39,5 +41,12 @@ export default async function EquipmentPage({ params }: PageProps) {
     notFound();
   }
 
-  return <EquipmentPageClient data={data} />;
+  const jsonLd = buildEquipmentPageJsonLd(data);
+
+  return (
+    <>
+      <JsonLd data={jsonLd} />
+      <EquipmentPageClient data={data} />
+    </>
+  );
 }
