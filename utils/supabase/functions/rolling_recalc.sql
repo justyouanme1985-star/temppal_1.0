@@ -105,7 +105,8 @@ BEGIN
     bpoint = COALESCE(count_items_cumulative, 0) * 1,
     total_points = (COALESCE(count_items_recent, 0) * 3)
                  + (COALESCE(count_items_cumulative, 0) * 1)
-                 + (COALESCE(currently_used, 0) * 100);
+                 + (COALESCE(currently_used, 0) * 100)
+  WHERE id IS NOT NULL;
 
   -- Step 6: Recalculate equipment rankings (per-category)
   WITH ranked AS (

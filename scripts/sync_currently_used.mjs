@@ -9,6 +9,7 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+import { recalcEquipmentRankings } from './recalcEquipmentRankings.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -87,11 +88,11 @@ async function main() {
 
   console.log(`Updated currently_used for ${updated}/${equipment.length} items`);
 
-  const { error: rpcErr } = await supabase.rpc('recalc_all_equip_rankings');
-  if (rpcErr) {
-    console.warn('recalc_all_equip_rankings RPC failed:', rpcErr.message);
+  const result = await recalcEquipmentRankings(supabase);
+  if (result.method === "rpc") {
+    console.log("Equipment rankings recalculated.");
   } else {
-    console.log('Equipment rankings recalculated.');
+    console.log("Equipment rankings recalculated (client fallback).");
   }
 }
 
