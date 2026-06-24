@@ -3,20 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 
 // Lazily created so module evaluation never fails when env vars are absent
 // (e.g. during `next build` page-data collection).
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  );
-}
-
-// Admin client with service role key for delete operations
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 }
+
+// Never expose secret_key on read paths — deletion auth stays server-side only.
+const PUBLIC_COMMENT_COLUMNS =
+  "id, target_type, target_id, parent_id, author, content, created_at, updated_at, deleted";
 
 // GET /api/comments?type=player|equipment&id=xxx
 export async function GET(req: NextRequest) {
@@ -28,10 +24,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
   }
 
-  const supabase = getSupabase();
+  // Service role + explicit columns so publishable-key clients cannot SELECT secret_key via RLS.
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("comments")
-    .select("*")
+    .select(PUBLIC_COMMENT_COLUMNS)
     .eq("target_type", targetType)
     .eq("target_id", targetId)
     .order("created_at", { ascending: true });
@@ -76,14 +73,14 @@ export async function POST(req: NextRequest) {
         content: content.trim(),
         secret_key: secretKey,
       }])
-      .select()
+      .select(PUBLIC_COMMENT_COLUMNS)
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Return the secret key so the client can store it in localStorage
+    // Return the secret key once on create so the client can store it in localStorage.
     return NextResponse.json({ ...data, secret_key: secretKey }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
