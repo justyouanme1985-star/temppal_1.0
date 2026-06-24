@@ -8,6 +8,7 @@ import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
   equipmentImages,
+  findStaticImage,
 } from "@/lib/equipmentData";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
@@ -292,7 +293,7 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                           name: equipName,
                           type: eq.label,
                           typeKey: eq.key,
-                          imgSrc: equipmentImages[dbKey] || null,
+                          imgSrc: findStaticImage(eq.key, dbKey) || null,
                           spec,
                           brand: spec?.brand || "",
                           model: spec?.model || "",
@@ -337,7 +338,7 @@ export default function PlayerCard({ player }: PlayerCardProps) {
 
               {/* Image section - clickable to equipment detail */}
               <Link
-                href={`/equipment/${popupEquip.typeKey}/${encodeURIComponent(popupEquip.name)}${player.dbId ? `?playerId=${player.dbId}` : ""}`}
+                href={`/equipment/${popupEquip.typeKey}/${encodeURIComponent(popupEquip.spec?.key || popupEquip.name)}${player.dbId ? `?playerId=${player.dbId}` : ""}`}
                 onClick={() => setPopupEquip(null)}
               >
                 <div className="bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-80 cursor-pointer">

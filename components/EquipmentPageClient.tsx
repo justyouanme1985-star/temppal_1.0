@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import type { Player } from "@/lib/playerMapping";
-import type { EquipmentPageData, EquipmentSpec } from "@/lib/serverEquipmentData";
+import type {
+  EquipmentPageData,
+  EquipmentSpec,
+} from "@/lib/serverEquipmentData";
 import CommentSection from "@/components/CommentSection";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
 
@@ -179,55 +182,15 @@ function EquipmentSpecs({ spec }: { spec: EquipmentSpec }) {
   );
 }
 
-export default function EquipmentPageClient({ data }: { data: EquipmentPageData }) {
+export default function EquipmentPageClient({
+  data,
+}: {
+  data: EquipmentPageData;
+}) {
   const { typeLabel, equipmentName, spec, players } = data;
-  const [navCount, setNavCount] = useState(0);
 
   const displayTitle =
-    spec?.brand && spec?.model
-      ? `${spec.brand} ${spec.model}`
-      : equipmentName;
-
-  useEffect(() => {
-    function saveScroll() {
-      const container = document.getElementById("main-scroll");
-      if (container) {
-        sessionStorage.setItem(
-          "equippage_scrollY",
-          String(container.scrollTop),
-        );
-      }
-    }
-    function onPopState() {
-      history.scrollRestoration = "manual";
-      setNavCount((c) => c + 1);
-    }
-    document.addEventListener("mousedown", saveScroll);
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      document.removeEventListener("mousedown", saveScroll);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("equippage_scrollY");
-    const container = document.getElementById("main-scroll");
-    if (!saved || !container) return;
-    history.scrollRestoration = "manual";
-    const targetY = parseInt(saved, 10);
-    let attempts = 0;
-    function tryScroll() {
-      if (!container) return;
-      attempts++;
-      if (container.scrollHeight <= targetY && attempts < 50) {
-        requestAnimationFrame(tryScroll);
-        return;
-      }
-      container.scrollTo(0, targetY);
-    }
-    requestAnimationFrame(tryScroll);
-  }, [navCount]);
+    spec?.brand && spec?.model ? `${spec.brand} ${spec.model}` : equipmentName;
 
   return (
     <div className="flex-1 overflow-y-auto pb-1.5">
@@ -290,10 +253,7 @@ export default function EquipmentPageClient({ data }: { data: EquipmentPageData 
                 <button
                   onClick={() =>
                     openCoupangLink(
-                      coupangLink(
-                        displayTitle,
-                        spec?.affiliate_url,
-                      ),
+                      coupangLink(displayTitle, spec?.affiliate_url),
                     )
                   }
                   className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer"

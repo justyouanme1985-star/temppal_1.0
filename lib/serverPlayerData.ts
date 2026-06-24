@@ -57,28 +57,34 @@ export async function getServerPlayersByGame(
   return players.filter((p) => p.game === game);
 }
 
-/** Find all players who use a specific equipment name (exact, case-insensitive). */
+/** Find all players who use a specific equipment name, using fuzzy matching. */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
+
+  // 1. Find ALL matching canonical keys from equipment_info via fuzzy match.
   const supabase = createServerSupabase();
-
-  // 1. Resolve the canonical key from equipment_info.
-  const { data: equip } = await supabase
+  const { data: equipRows } = await supabase
     .from('equipment_info')
-    .select('key')
-    .ilike('key', equipmentName)
-    .maybeSingle();
+    .select('key, category');
 
-  if (!equip) return [];
-  const exactKey = equip.key;
+  if (!equipRows || equipRows.length === 0) return [];
 
-  // 2. Match against current equipment columns only.
+  const matchedKeys = fuzzyMatchKeys(equipRows as { key: string }[], equipmentName);
+  if (matchedKeys.length === 0) return [];
+
+  // 2. Search players using ilike EXACT match against ALL matched keys.
+  //    This prevents false positives — only exact matches count.
+  const cols = ['mouse', 'keyboard', 'headset', 'monitor', 'mousepad', 'chair', 'desk'];
+  const orParts = matchedKeys.flatMap(k =>
+    cols.map(c => `${c}.ilike.${k}`)
+  );
+  // Limit to avoid overly large queries
+  const safeParts = orParts.slice(0, 200);
+
   const { data: rawPlayers } = await supabase
     .from('gamers_info')
     .select('*')
-    .or(
-      `mouse.ilike.${exactKey},keyboard.ilike.${exactKey},headset.ilike.${exactKey},monitor.ilike.${exactKey},mousepad.ilike.${exactKey},chair.ilike.${exactKey},desk.ilike.${exactKey}`,
-    );
+    .or(safeParts.join(','));
 
   if (!rawPlayers || rawPlayers.length === 0) return [];
 
@@ -86,8 +92,9 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   const seen = new Set<string>();
   const result: Player[] = [];
   for (const raw of rawPlayers as RawPlayer[]) {
-    if (seen.has(raw.ign)) continue;
-    seen.add(raw.ign);
+    const normIgn = (raw.ign || "").toLowerCase().trim();
+    if (!normIgn || seen.has(normIgn)) continue;
+    seen.add(normIgn);
     result.push(mapRawToPlayer(raw));
   }
 
@@ -104,6 +111,38 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   });
 
   return result;
+}
+
+/**
+ * Fuzzy-match an equipment search string against a set of equipment_info keys.
+ * Returns all canonical keys that match (exact, substring, or token >= 50%).
+ */
+function fuzzyMatchKeys(rows: { key: string }[], search: string): string[] {
+  const keys = rows.map(r => r.key);
+  const lower = search.toLowerCase().trim();
+  const norm = search.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+
+  // 1) Case-insensitive exact match
+  const exactMatch = keys.find(k => k.toLowerCase() === lower);
+  if (exactMatch) return [exactMatch];
+
+  // 2) Token matches (>= 50%) — no substring to prevent
+  //    "Custom Keyboard" → "Custom Keyboard Frog F12" false positives.
+  const searchTokens = norm.split(' ').filter(t => t.length > 1);
+  if (searchTokens.length === 0) return [];
+
+  const scored: { key: string; score: number }[] = [];
+  for (const k of keys) {
+    const kTokens = k.replace(/[-_\s]+/g, ' ').toLowerCase().trim().split(' ').filter(t => t.length > 1);
+    let matchCount = 0;
+    for (const t of searchTokens) {
+      if (kTokens.includes(t)) matchCount++;
+    }
+    const score = matchCount / Math.max(kTokens.length, searchTokens.length);
+    if (score >= 0.5) scored.push({ key: k, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map(s => s.key);
 }
 
 export { rankPlayers };

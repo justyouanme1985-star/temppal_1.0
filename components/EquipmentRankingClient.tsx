@@ -108,50 +108,6 @@ export default function EquipmentRankingClient({
     {} as Record<string, EquipmentRankItem[]>,
   );
 
-  // ── Scroll save / restore (uses the single layout scroll container) ──
-  const [navCount, setNavCount] = useState(0);
-  useEffect(() => {
-    function saveScroll() {
-      const container = document.getElementById("main-scroll");
-      if (container) {
-        sessionStorage.setItem(
-          "equip_ranking_scrollY",
-          String(container.scrollTop),
-        );
-      }
-    }
-    function onPopState() {
-      history.scrollRestoration = "manual";
-      setNavCount((c) => c + 1);
-    }
-    document.addEventListener("mousedown", saveScroll);
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      document.removeEventListener("mousedown", saveScroll);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("equip_ranking_scrollY");
-    const container = document.getElementById("main-scroll");
-    if (!saved || !container) return;
-    history.scrollRestoration = "manual";
-    const targetY = parseInt(saved, 10);
-    let attempts = 0;
-    function tryScroll() {
-      if (!container) return;
-      attempts++;
-      if (container.scrollHeight <= targetY && attempts < 50) {
-        requestAnimationFrame(tryScroll);
-        return;
-      }
-      container.scrollTo(0, targetY);
-    }
-    requestAnimationFrame(tryScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navCount]);
-
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
       <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 text-center">
@@ -160,40 +116,40 @@ export default function EquipmentRankingClient({
 
       {/* Category Navigation Icons — smooth scroll */}
       {!hideCategoryNav && (
-      <div className="flex items-stretch justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-        {categoryOrder.map((cat) => {
-          const items = groupedByCategory[cat] || [];
-          if (items.length === 0) return null;
-          return (
-            <button
-              key={cat}
-              onClick={() => {
-                const container = document.getElementById("main-scroll");
-                const section = document.getElementById(`cat-${cat}`);
-                if (container && section) {
-                  const top =
-                    section.getBoundingClientRect().top +
-                    container.scrollTop -
-                    60;
-                  container.scrollTo({ top, behavior: "smooth" });
-                }
-              }}
-              className="flex flex-col items-center justify-center gap-0.5 shrink-0 w-14 h-14 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
-            >
-              <span className="text-base leading-none">
-                {cat === "desk" ? (
-                  <DeskIcon className="w-5 h-5" />
-                ) : (
-                  categoryIcons[cat] || "📦"
-                )}
-              </span>
-              <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                {typeLabelMap[cat] || cat}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+        <div className="flex items-stretch justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+          {categoryOrder.map((cat) => {
+            const items = groupedByCategory[cat] || [];
+            if (items.length === 0) return null;
+            return (
+              <button
+                key={cat}
+                onClick={() => {
+                  const container = document.getElementById("main-scroll");
+                  const section = document.getElementById(`cat-${cat}`);
+                  if (container && section) {
+                    const top =
+                      section.getBoundingClientRect().top +
+                      container.scrollTop -
+                      60;
+                    container.scrollTo({ top, behavior: "smooth" });
+                  }
+                }}
+                className="flex flex-col items-center justify-center gap-0.5 shrink-0 w-14 h-14 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                <span className="text-base leading-none">
+                  {cat === "desk" ? (
+                    <DeskIcon className="w-5 h-5" />
+                  ) : (
+                    categoryIcons[cat] || "📦"
+                  )}
+                </span>
+                <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                  {typeLabelMap[cat] || cat}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {activeCategories.map((cat) => {

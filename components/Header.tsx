@@ -139,7 +139,6 @@ export default function Header() {
         <Link
           href="/"
           onClick={(e) => {
-            sessionStorage.removeItem("homepage_scrollY");
             sessionStorage.removeItem("equip_visibleRows");
             // Clear all homepage expand states so it loads fresh
             for (let i = 0; i < sessionStorage.length; i++) {

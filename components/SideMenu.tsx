@@ -127,7 +127,6 @@ export default function SideMenu() {
                   <button
                     onClick={() => {
                       setIsOpen(false);
-                      sessionStorage.removeItem("homepage_scrollY");
                       sessionStorage.removeItem("equip_visibleRows");
                       for (let i = 0; i < sessionStorage.length; i++) {
                         const key = sessionStorage.key(i);
@@ -145,7 +144,6 @@ export default function SideMenu() {
                   <button
                     onClick={() => {
                       setIsOpen(false);
-                      sessionStorage.removeItem("equip_ranking_scrollY");
                       sessionStorage.removeItem("equip_visibleRows");
                       window.location.href = "/equipment";
                     }}

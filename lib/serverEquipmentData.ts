@@ -3,6 +3,7 @@ import {
   equipmentImages,
   formatEquipmentSpec,
   getEquipmentSpec,
+  findStaticImage,
 } from "./equipmentData";
 import { getEquipmentTypeLabel } from "./equipmentLabels";
 import type { Player } from "./playerMapping";
@@ -35,6 +36,7 @@ export type EquipmentPageData = {
 
 async function fetchEquipmentRow(typeKey: string, equipmentName: string) {
   const supabase = createServerSupabase();
+  // 1) Exact ilike match first
   const { data, error } = await supabase
     .from("equipment_info")
     .select("*")
@@ -47,7 +49,71 @@ async function fetchEquipmentRow(typeKey: string, equipmentName: string) {
     return null;
   }
 
-  return data;
+  if (data) return data;
+
+  // 2) Fuzzy fallback — fetch all rows for this category and match client-side
+  const { data: allRows, error: allErr } = await supabase
+    .from("equipment_info")
+    .select("*")
+    .eq("category", typeKey)
+    .order("id");
+
+  if (allErr || !allRows || allRows.length === 0) return null;
+
+  return fuzzyMatchEquipment(allRows, equipmentName);
+}
+
+/**
+ * Same 4-tier fuzzy matching as getSupabaseEquipmentSpec() on the browser.
+ * Returns the best-match row or null.
+ */
+function fuzzyMatchEquipment(
+  rows: Record<string, unknown>[],
+  searchKey: string,
+): Record<string, unknown> | null {
+  // 1) Exact match
+  for (const r of rows) {
+    if ((r.key as string) === searchKey) return r;
+  }
+
+  // 2) Case-insensitive exact match
+  const lower = searchKey.toLowerCase();
+  for (const r of rows) {
+    if ((r.key as string).toLowerCase() === lower) return r;
+  }
+
+  // 3) Substring: search contains canonical key (safe direction).
+  const normKey = searchKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+  for (const r of rows) {
+    const normDbKey = (r.key as string).replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+    if (normKey.includes(normDbKey)) return r;
+  }
+
+  // 4) Token match (>= 50% tokens overlap).
+  const keyTokens = normKey.split(' ').filter(t => t.length > 1);
+  if (keyTokens.length > 0) {
+    let bestScore = 0;
+    let bestRow: Record<string, unknown> | null = null;
+    for (const r of rows) {
+      const dbTokens = (r.key as string)
+        .replace(/[-_\s]+/g, ' ')
+        .toLowerCase().trim()
+        .split(' ')
+        .filter(t => t.length > 1);
+      let matchCount = 0;
+      for (const t of keyTokens) {
+        if (dbTokens.includes(t)) matchCount++;
+      }
+      const score = matchCount / Math.max(dbTokens.length, keyTokens.length);
+      if (score > bestScore) {
+        bestScore = score;
+        bestRow = r;
+      }
+    }
+    if (bestScore >= 0.5) return bestRow;
+  }
+
+  return null;
 }
 
 function resolveSpec(
@@ -60,8 +126,9 @@ function resolveSpec(
     const formatted = formatEquipmentSpec(row, typeKey);
     if (!formatted) return null;
     const key = (row.key as string) || equipmentName;
-    if (equipmentImages[key]) {
-      formatted.image = equipmentImages[key];
+    const img = findStaticImage(typeKey, key);
+    if (img) {
+      formatted.image = img;
     }
     return formatted as EquipmentSpec;
   }
@@ -73,7 +140,7 @@ function resolveSpec(
     ...(staticSpec as unknown as Record<string, unknown>),
     _type: typeKey,
   };
-  const image = equipmentImages[equipmentName];
+  const image = findStaticImage(typeKey, equipmentName);
   if (image) spec.image = image;
   return spec;
 }

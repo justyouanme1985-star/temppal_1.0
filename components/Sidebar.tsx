@@ -116,7 +116,6 @@ export default function Sidebar() {
             <div className="flex flex-col gap-0.5 px-2">
               <button
                 onClick={() => {
-                  sessionStorage.removeItem("homepage_scrollY");
                   sessionStorage.removeItem("equip_visibleRows");
                   for (let i = 0; i < sessionStorage.length; i++) {
                     const key = sessionStorage.key(i);
@@ -133,7 +132,6 @@ export default function Sidebar() {
               </button>
               <button
                 onClick={() => {
-                  sessionStorage.removeItem("equip_ranking_scrollY");
                   sessionStorage.removeItem("equip_visibleRows");
                   window.location.href = "/equipment";
                 }}

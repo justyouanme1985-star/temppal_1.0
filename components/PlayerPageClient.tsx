@@ -12,7 +12,7 @@ import {
   getSupabaseEquipmentSpec,
   formatEquipmentSpec,
   getEquipmentSpec,
-  equipmentImages,
+  findStaticImage,
 } from "@/lib/equipmentData";
 
 const equipmentTypeMap: Record<string, string> = {
@@ -31,8 +31,6 @@ const gameNames: Record<string, string> = {
   valorant: "발로란트",
   battlegrounds: "배틀그라운드",
 };
-
-const SCROLL_STORAGE_KEY = "playerpage_scrollY";
 
 function formatDateString(s?: string) {
   if (!s) return "";
@@ -53,28 +51,34 @@ function EquipmentCard({
   name: string;
   playerDbId?: number;
 }) {
+  const typeKey = equipmentTypeMap[type] || "";
+
+  // Resolve image immediately from static equipmentImages map — no async wait.
+  const staticImg = findStaticImage(type, name) || null;
+
   const [spec, setSpec] = useState<any>(null);
+  const [resolvedKey, setResolvedKey] = useState<string | null>(null);
   const lastEquipClickRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       await loadEquipmentFromSupabase();
-      const typeKey = equipmentTypeMap[type];
       if (!typeKey) return;
 
       let raw = getSupabaseEquipmentSpec(typeKey, name);
       if (!raw) {
         const staticSpec = getEquipmentSpec(type, name);
         if (staticSpec) {
-          const correctImage = equipmentImages[name];
+          const correctImage = findStaticImage(type, name);
           if (correctImage) staticSpec.image = correctImage;
           if (mounted) setSpec(staticSpec as any);
         }
         return;
       }
       if (mounted) {
-        setSpec(raw ? formatEquipmentSpec(raw, typeKey) : null);
+        setSpec(formatEquipmentSpec(raw, typeKey));
+        setResolvedKey((raw as any).key || null);
       }
     }
     load();
@@ -82,6 +86,11 @@ function EquipmentCard({
       mounted = false;
     };
   }, [type, name]);
+
+  const equipUrl = `/equipment/${typeKey}/${encodeURIComponent(resolvedKey || name)}${playerDbId ? `?playerId=${playerDbId}` : ""}`;
+
+  // Use static image immediately; Supabase-loaded spec may override with richer data.
+  const displayImg = spec?.image || staticImg;
 
   function handleEquipmentBtnClick() {
     if (!playerDbId) return;
@@ -117,14 +126,14 @@ function EquipmentCard({
 
   return (
     <Link
-      href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(name)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
+      href={equipUrl}
       onClick={handleCardClick}
       className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col no-underline"
     >
       <div className="relative bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-48 group">
-        {spec && spec.image ? (
+        {displayImg ? (
           <Image
-            src={spec.image}
+            src={displayImg}
             alt={name}
             width={160}
             height={160}
@@ -340,46 +349,6 @@ function EquipmentCard({
 }
 
 export default function PlayerPageClient({ player }: { player: Player }) {
-  const [navCount, setNavCount] = useState(0);
-
-  useEffect(() => {
-    function saveScroll() {
-      const container = document.getElementById("main-scroll");
-      if (container) {
-        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(container.scrollTop));
-      }
-    }
-    function onPopState() {
-      history.scrollRestoration = "manual";
-      setNavCount((c) => c + 1);
-    }
-    document.addEventListener("mousedown", saveScroll);
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      document.removeEventListener("mousedown", saveScroll);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-    const container = document.getElementById("main-scroll");
-    if (!saved || !container) return;
-    history.scrollRestoration = "manual";
-    const targetY = parseInt(saved, 10);
-    let attempts = 0;
-    function tryScroll() {
-      if (!container) return;
-      attempts++;
-      if (container.scrollHeight <= targetY && attempts < 50) {
-        requestAnimationFrame(tryScroll);
-        return;
-      }
-      container.scrollTo(0, targetY);
-    }
-    requestAnimationFrame(tryScroll);
-  }, [navCount]);
-
   return (
     <div className="flex-1 overflow-y-auto pb-1.5">
       <div className="max-w-4xl mx-auto px-4 py-6">

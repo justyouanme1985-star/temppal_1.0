@@ -137,61 +137,9 @@ export default function HomeClient({
   const queryClient = useQueryClient();
 
   // Hydrate React Query cache so subsequent navigations are instant.
-  // Server-rendered HTML already contains the data — no client fetch needed.
   useEffect(() => {
     queryClient.setQueryData(playerKeys.lists(), initialPlayers);
   }, [initialPlayers, queryClient]);
-
-  // ── Scroll save / restore (uses the single layout scroll container) ──
-  function getScrollContainer(): HTMLElement | null {
-    return document.getElementById("main-scroll");
-  }
-
-  function restoreScroll() {
-    const saved = sessionStorage.getItem("homepage_scrollY");
-    if (!saved) return;
-    const targetY = parseInt(saved, 10);
-    const container = getScrollContainer();
-    if (!container) return;
-    history.scrollRestoration = "manual";
-    let attempts = 0;
-    function tryScroll() {
-      if (!container) return;
-      attempts++;
-      // Keep trying until content is tall enough (max 50 frames ≈ 800ms)
-      if (container.scrollHeight <= targetY && attempts < 50) {
-        requestAnimationFrame(tryScroll);
-        return;
-      }
-      container.scrollTo(0, targetY);
-    }
-    requestAnimationFrame(tryScroll);
-  }
-
-  const [navCount, setNavCount] = useState(0);
-  useEffect(() => {
-    function saveScroll() {
-      const container = getScrollContainer();
-      if (container) {
-        sessionStorage.setItem("homepage_scrollY", String(container.scrollTop));
-      }
-    }
-    function onPopState() {
-      history.scrollRestoration = "manual";
-      setNavCount((c) => c + 1);
-    }
-    document.addEventListener("mousedown", saveScroll);
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      document.removeEventListener("mousedown", saveScroll);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    restoreScroll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navCount]);
 
   const lolPlayers = initialPlayers.filter((p) => p.game === "lol");
   const valPlayers = initialPlayers.filter((p) => p.game === "valorant");

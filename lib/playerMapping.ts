@@ -180,7 +180,7 @@ export function mapRawToPlayer(raw: RawPlayer): Player {
     prevRank > 0 && currRank > 0 ? prevRank - currRank : 0;
 
   return {
-    id: (raw.ign || "").toLowerCase(),
+    id: (raw.ign || "").toLowerCase().trim(),
     dbId: raw.id,
     team: raw.team || "",
     teamLogo: teamLogos[raw.team] || "",
@@ -232,8 +232,9 @@ export function rankPlayers(players: Player[]): Player[] {
 export function dedupeAndRank(rawPlayers: RawPlayer[]): Player[] {
   const playerMap = new Map<string, Player>();
   for (const raw of rawPlayers) {
-    if (!raw.ign || playerMap.has(raw.ign)) continue;
-    playerMap.set(raw.ign, mapRawToPlayer(raw));
+    const normIgn = (raw.ign || "").toLowerCase().trim();
+    if (!normIgn || playerMap.has(normIgn)) continue;
+    playerMap.set(normIgn, mapRawToPlayer(raw));
   }
 
   const byGame: Record<string, Player[]> = {};

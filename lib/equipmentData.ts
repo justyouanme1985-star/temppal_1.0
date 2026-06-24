@@ -1403,16 +1403,17 @@ export function getSupabaseEquipmentSpec(category: string, key: string): any | u
     if (dbKey.toLowerCase() === lowerKey) return spec;
   }
 
-  // 3. Substring match
+  // 3. Substring: search contains canonical key (safe direction).
+  //    "Logitech G903 LIGHTSPEED Gaming Mouse" → "Logitech G903" ✅
   const normKey = key.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
   for (const [dbKey, spec] of Object.entries(catCache)) {
     const normDbKey = dbKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
-    if (normKey.includes(normDbKey) || normDbKey.includes(normKey)) {
+    if (normKey.includes(normDbKey)) {
       return spec;
     }
   }
 
-  // 4. Token match (if >= 50% tokens match)
+  // 4. Token match (if >= 50% tokens match).
   const keyTokens = normKey.split(' ').filter(t => t.length > 1);
   if (keyTokens.length > 0) {
     let bestScore = 0;
@@ -1440,12 +1441,9 @@ export function hasEquipmentImage(category: string, key: string): boolean {
   // Check Supabase cache using our fuzzy matcher
   const raw = getSupabaseEquipmentSpec(category, key);
   if (raw) {
-    // If it maps to a Supabase key, check if that key has an image
-    if (equipmentImages[raw.key]) return true;
+    if (findStaticImage(category, raw.key)) return true;
   }
-  // Check static mapping directly just in case
-  if (equipmentImages[key]) return true;
-  return false;
+  return !!findStaticImage(category, key);
 }
 
 /** Get equipment spec as a plain object suitable for EquipmentCard display */
@@ -1482,9 +1480,44 @@ export function formatEquipmentSpec(raw: any, typeLabel: string): Record<string,
   };
 }
 
-/** Look up equipment image from hardcoded mapping */
-function findStaticImage(category: string, key: string): string | undefined {
-  return equipmentImages[key];
+/** Look up equipment image from hardcoded mapping with fuzzy fallback. */
+export function findStaticImage(_category: string, key: string): string | undefined {
+  // 1) Exact match
+  if (equipmentImages[key]) return equipmentImages[key];
+
+  // 2) Case-insensitive exact
+  const lower = key.toLowerCase();
+  for (const [imgKey, imgPath] of Object.entries(equipmentImages)) {
+    if (imgKey.toLowerCase() === lower && imgPath) return imgPath;
+  }
+
+  // 3) Substring: search contains image key (safe direction)
+  const normKey = key.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+  for (const [imgKey, imgPath] of Object.entries(equipmentImages)) {
+    if (!imgPath) continue;
+    const normImgKey = imgKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+    if (normKey.includes(normImgKey)) return imgPath;
+  }
+
+  // 4) Token match (>= 50%)
+  const keyTokens = normKey.split(' ').filter(t => t.length > 1);
+  if (keyTokens.length > 0) {
+    let bestScore = 0;
+    let bestImg: string | undefined;
+    for (const [imgKey, imgPath] of Object.entries(equipmentImages)) {
+      if (!imgPath) continue;
+      const imgTokens = imgKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim().split(' ').filter(t => t.length > 1);
+      let matchCount = 0;
+      for (const t of keyTokens) {
+        if (imgTokens.includes(t)) matchCount++;
+      }
+      const score = matchCount / Math.max(imgTokens.length, keyTokens.length);
+      if (score > bestScore) { bestScore = score; bestImg = imgPath; }
+    }
+    if (bestScore >= 0.5) return bestImg;
+  }
+
+  return undefined;
 }
 
 export const equipmentImages: Record<string, string> = {
@@ -1494,6 +1527,7 @@ export const equipmentImages: Record<string, string> = {
   "Artisan Hayate Otsu": "/images/equipments/105021_Hayate_Otsu.webp",
   "Artisan Ninja FX Zero": "/images/equipments/105019_Zero.webp",
   "Artisan Ninja FX Zero X Soft": "/images/equipments/105019_Zero.webp",
+  "Artisan Ninja FX Zero XSoft": "/images/equipments/105019_Zero.webp",
   "Artisan NINJA FX99": "/images/equipments/105030_Artisan_NINJA_FX99.webp",
   "Artisan Type-99 Soft Black": "/images/equipments/105031_Artisan_Type-99_Soft_Black.webp",
   "Artisan Zero": "/images/equipments/105032_Artisan_Zero.webp",
@@ -1532,6 +1566,7 @@ export const equipmentImages: Record<string, string> = {
   "Corsair VIRTUOSO Max": "/images/equipments/103012_Syn_PRO_Air.webp",
   "Corsair VOID RGB Elite": "/images/equipments/103011_VIRTUOSO.webp",
   "COX Endeavor White": "/images/equipments/102040_COX_Endeavor_White.webp",
+  "Custom Keyboard": "",
   "Custom Keyboard Frog F12 WK Cream Barebone": "/images/equipments/102066_Custom Keyboard Frog F12 WK Cream Barebone.webp",
   "DAREU A87 Pro 8K": "/images/equipments/102044_DAREU_A87_Pro_8K.webp",
   "Deck CBL-108XN(헤슘 거북선)": "/images/equipments/102045_Deck_CBL-108XN_Hassium_Geobukseon.webp",
@@ -1542,6 +1577,7 @@ export const equipmentImages: Record<string, string> = {
   "Filco Majestouch 2": "/images/equipments/102023_Majestouch_2.webp",
   "Filco Majestouch 2 TKL": "/images/equipments/102023_Majestouch_2.webp",
   "Finalmouse Ultralight X Medium": "/images/equipments/101045_Finalmouse_Ultralight_X_Medium.webp",
+  "FlaSh Goods": "",
   "G915 TKL X Linear": "/images/equipments/102049_G915_TKL_X_Linear.webp",
   "HP X27i": "/images/equipments/104006_X27i_Gaming_Monitor.webp",
   "HyperX Alloy FPS Pro": "/images/equipments/102050_hyperx_alloy_fps_pro.webp",
@@ -1691,6 +1727,7 @@ export const equipmentImages: Record<string, string> = {
   "Zaopin Z1 PRO": "/images/equipments/101041_Z1_PRO.webp",
   "Zowie EC2-CW": "/images/equipments/101033_EC2-CW.webp",
   "ZOWIE FK2": "/images/equipments/101054_ZOWIE_FK2.webp",
+  "Zowie G-SR": "/images/equipments/105017_G-SR-SE.webp",
   "Zowie G-SR II": "/images/equipments/105016_G-SR_II.webp",
   "Zowie G-SR SE": "/images/equipments/105017_G-SR-SE.webp",
   "Zowie Gear Mico": "/images/equipments/101034_Mico.webp",
