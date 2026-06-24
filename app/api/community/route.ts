@@ -1,8 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { hashPassword, verifyPassword } from '@/lib/password';
+import {
+  PUBLIC_COMMUNITY_POST_COLUMNS,
+  sanitizeCommunityFileUrls,
+} from '@/lib/communityPosts';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+function getClientIp(request: NextRequest): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown';
+}
+
+// GET /api/community?page=0&limit=20
+export async function GET(request: NextRequest) {
+  const page = Math.max(0, Number(request.nextUrl.searchParams.get('page')) || 0);
+  const limit = Math.min(
+    50,
+    Math.max(1, Number(request.nextUrl.searchParams.get('limit')) || 20),
+  );
+  const from = page * limit;
+  const to = from + limit - 1;
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('community_posts')
+    .select(PUBLIC_COMMUNITY_POST_COLUMNS)
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    return NextResponse.json({ error: '게시글 목록을 불러오지 못했습니다.' }, { status: 500 });
+  }
+
+  return NextResponse.json(data ?? []);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (title.length > 100) {
       return NextResponse.json({ error: '제목은 100자를 초과할 수 없습니다.' }, { status: 400 });
     }
-    if (content.length > 10000) {
+    if (typeof content === 'string' && content.length > 10000) {
       return NextResponse.json({ error: '내용은 10000자를 초과할 수 없습니다.' }, { status: 400 });
     }
     if (author_nickname.length > 20) {
@@ -26,14 +65,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '비밀번호는 50자를 초과할 수 없습니다.' }, { status: 400 });
     }
 
-    const files = Array.isArray(file_urls) ? file_urls.slice(0, 3) : [];
+    const files = sanitizeCommunityFileUrls(file_urls);
+    if (Array.isArray(file_urls) && file_urls.length > 0 && files.length === 0) {
+      return NextResponse.json(
+        { error: '첨부파일 URL이 유효하지 않습니다. 사이트 업로드 파일만 첨부할 수 있습니다.' },
+        { status: 400 },
+      );
+    }
 
-    // ── Get client IP ──
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const ip = getClientIp(request);
+    const supabase = getSupabaseAdmin();
 
     // ── Rate limit: max 10 posts per hour per IP ──
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -85,18 +126,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Insert ──
+    // ── Insert ── (store password as a salted scrypt hash, never plaintext)
     const { data, error } = await supabase
       .from('community_posts')
       .insert([{
         author_nickname,
-        author_password,
+        author_password: hashPassword(author_password),
         title,
         content: content || '',
         file_urls: files,
         ip_address: ip,
       }])
-      .select()
+      .select(PUBLIC_COMMUNITY_POST_COLUMNS)
       .single();
 
     if (error) {
@@ -105,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ post: data }, { status: 201 });
 
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 });
   }
 }
@@ -120,10 +161,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID와 비밀번호가 필요합니다.' }, { status: 400 });
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
+    const supabase = getSupabaseAdmin();
 
     // Verify password
     const { data: post } = await supabase
@@ -136,7 +174,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '게시글을 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    if (post.author_password !== password) {
+    if (!verifyPassword(password, post.author_password)) {
       return NextResponse.json({ error: '비밀번호가 일치하지 않습니다.' }, { status: 403 });
     }
 

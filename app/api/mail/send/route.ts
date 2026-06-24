@@ -3,6 +3,20 @@ import nodemailer from "nodemailer";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Fixed destination — the client-supplied `to` is ignored to prevent this
+// endpoint from being abused as an open mail relay.
+const MAIL_DESTINATION = process.env.MAIL_TO || "temppal2026@gmail.com";
+
+/** Escape user-controlled text before embedding it into the HTML email body. */
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ── Rate limiter: max 20 emails per hour per IP ──
 const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -66,15 +80,20 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { type, to, cc, from, subject, message, attachments } = body || {};
+    const { type, cc, from, subject, message, attachments } = body || {};
 
-    if (!to || !subject || !message) {
+    if (!subject || !message) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     if (!from || !EMAIL_RE.test(from)) {
       return NextResponse.json({ error: "올바른 이메일 주소를 입력해주세요." }, { status: 400 });
     }
+
+    // Ignore any client-supplied recipient; always deliver to the fixed inbox.
+    const to = MAIL_DESTINATION;
+    // Only honour cc when it is a valid email address.
+    const safeCc = typeof cc === "string" && EMAIL_RE.test(cc) ? cc : "";
 
     // Validate attachments if present
     const allowed = ["image/jpeg", "image/png", "image/webp"];
@@ -104,18 +123,21 @@ export async function POST(req: Request) {
 
     // Build email
     const typeLabel = type === "report" ? "[신고/접수]" : "[문의]";
+    const safeFrom = escapeHtml(from);
+    const safeMessageHtml = escapeHtml(message).replace(/\n/g, "<br>");
     const mailOptions: nodemailer.SendMailOptions = {
       from: `"${from}" <${process.env.SMTP_USER || "noreply@temppal.com"}>`,
       to,
       replyTo: from,
+      cc: safeCc || undefined,
       subject: `${typeLabel} ${subject}`,
-      text: `보낸 사람: ${from}\n${cc ? `참조: ${cc}\n` : ""}\n${message}`,
+      text: `보낸 사람: ${from}\n${safeCc ? `참조: ${safeCc}\n` : ""}\n${message}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <p><strong>보낸 사람:</strong> ${from}</p>
-          ${cc ? `<p><strong>참조:</strong> ${cc}</p>` : ""}
+          <p><strong>보낸 사람:</strong> ${safeFrom}</p>
+          ${safeCc ? `<p><strong>참조:</strong> ${escapeHtml(safeCc)}</p>` : ""}
           <hr style="border: none; border-top: 1px solid #e0e0e0;" />
-          <div style="white-space: pre-wrap;">${message.replace(/\n/g, "<br>")}</div>
+          <div style="white-space: pre-wrap;">${safeMessageHtml}</div>
         </div>
       `,
     };

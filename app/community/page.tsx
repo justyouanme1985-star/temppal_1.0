@@ -2,21 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
-import { MessageSquare, Plus, Clock, User } from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
+import type { CommunityPostPublic } from "@/lib/communityPosts";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-interface Post {
-  id: number;
-  created_at: string;
-  author_nickname: string;
-  title: string;
-  content: string;
-  file_urls: string[];
-}
+type Post = CommunityPostPublic;
 
 function timeAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -53,19 +42,20 @@ export default function CommunityPage() {
 
   async function loadPosts() {
     setLoading(true);
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-
-    const { data } = await supabase
-      .from("community_posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, to);
-
-    if (data) {
+    try {
+      const res = await fetch(
+        `/api/community?page=${page}&limit=${pageSize}`,
+      );
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
+      const data: Post[] = await res.json();
       if (page === 0) setPosts(data);
       else setPosts((prev) => [...prev, ...data]);
       if (data.length < pageSize) setHasMore(false);
+    } catch {
+      /* ignore */
     }
     setLoading(false);
   }

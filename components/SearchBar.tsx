@@ -82,7 +82,6 @@ export default function SearchBar() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const trimmed = (inputRef.current?.value || query).trim();
-    console.log("submit query:", trimmed);
     if (!trimmed) return;
 
     if (selectedIndex >= 0 && results[selectedIndex]) {

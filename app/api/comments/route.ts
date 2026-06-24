@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-);
+// Lazily created so module evaluation never fails when env vars are absent
+// (e.g. during `next build` page-data collection).
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
-// Admin client with service role key for delete operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+// Never expose secret_key on read paths — deletion auth stays server-side only.
+const PUBLIC_COMMENT_COLUMNS =
+  "id, target_type, target_id, parent_id, author, content, created_at, updated_at, deleted";
 
 // GET /api/comments?type=player|equipment&id=xxx
 export async function GET(req: NextRequest) {
@@ -22,9 +24,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
   }
 
+  // Service role + explicit columns so publishable-key clients cannot SELECT secret_key via RLS.
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("comments")
-    .select("*")
+    .select(PUBLIC_COMMENT_COLUMNS)
     .eq("target_type", targetType)
     .eq("target_id", targetId)
     .order("created_at", { ascending: true });
@@ -45,6 +49,9 @@ export async function POST(req: NextRequest) {
     if (!target_type || !target_id || !author?.trim() || !content?.trim()) {
       return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 });
     }
+    if (!["player", "equipment", "community"].includes(target_type)) {
+      return NextResponse.json({ error: "잘못된 대상 유형입니다." }, { status: 400 });
+    }
     if (author.trim().length > 20) {
       return NextResponse.json({ error: "이름은 20자 이하로 입력해주세요." }, { status: 400 });
     }
@@ -55,6 +62,7 @@ export async function POST(req: NextRequest) {
     // Generate a unique secret key for deletion
     const secretKey = crypto.randomUUID();
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("comments")
       .insert([{
@@ -65,14 +73,14 @@ export async function POST(req: NextRequest) {
         content: content.trim(),
         secret_key: secretKey,
       }])
-      .select()
+      .select(PUBLIC_COMMENT_COLUMNS)
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Return the secret key so the client can store it in localStorage
+    // Return the secret key once on create so the client can store it in localStorage.
     return NextResponse.json({ ...data, secret_key: secretKey }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -89,6 +97,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID와 삭제 키가 필요합니다." }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     // Verify the secret key matches
     const { data: comment } = await supabaseAdmin
       .from("comments")
