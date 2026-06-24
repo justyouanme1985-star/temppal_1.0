@@ -4,6 +4,7 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
 import {
   getSupabaseAdmin,
   isSupabaseAdminConfigured,
+  resolveServiceRoleKey,
 } from "@/lib/security/supabaseAdmin";
 
 // Base columns always present on comments table
@@ -15,8 +16,11 @@ const DELETE_LIMIT = 60;
 const WINDOW_MS = 60 * 60 * 1000;
 
 function configErrorResponse() {
+  const hasUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim());
+  const hasKey = Boolean(resolveServiceRoleKey());
   console.error(
-    "comments API: SUPABASE_SERVICE_ROLE_KEY is missing — set it in Vercel/host env",
+    "comments API: Supabase admin not configured",
+    { hasUrl, hasServiceRoleKey: hasKey },
   );
   return NextResponse.json(
     { error: "댓글 서버 설정 오류입니다. 관리자에게 문의해주세요." },
