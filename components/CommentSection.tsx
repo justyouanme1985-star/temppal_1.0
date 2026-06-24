@@ -45,6 +45,7 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [author, setAuthor] = useState("");
+  const [password, setPassword] = useState("");
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -76,7 +77,7 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!author.trim() || !content.trim()) return;
+    if (!author.trim() || !password.trim() || !content.trim()) return;
     setSending(true);
     setError("");
     try {
@@ -88,6 +89,7 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
           target_id: targetId,
           parent_id: null,
           author: author.trim(),
+          password: password.trim(),
           content: content.trim(),
         }),
       });
@@ -97,11 +99,9 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
         return;
       }
       const result = await res.json();
-      // Store secret key for deletion
-      if (result.secret_key) {
-        saveCommentKey(result.id, result.secret_key);
-      }
+      saveCommentKey(result.id, password.trim());
       setAuthor("");
+      setPassword("");
       setContent("");
       await loadComments();
     } catch {
@@ -184,45 +184,18 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
         </div>
       )}
 
-      {/* Write form — 한 줄: 이름 | 내용 | 등록 */}
-      <form onSubmit={handleSubmit} className="flex items-start gap-2">
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="닉네임"
-          maxLength={20}
-          className="w-24 shrink-0 px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onCompositionStart={() => {
-            isComposingRef.current = true;
-          }}
-          onCompositionEnd={() => {
-            isComposingRef.current = false;
-          }}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" || e.shiftKey || isComposingRef.current) return;
-            e.preventDefault();
-            e.currentTarget.form?.requestSubmit();
-          }}
-          placeholder="내용"
-          rows={1}
-          maxLength={1500}
-          className="flex-1 px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          required
-        />
-        <button
-          type="submit"
-          disabled={sending || !author.trim() || !content.trim()}
-          className="shrink-0 px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded-lg transition-colors"
-        >
-          {sending ? "..." : "등록"}
-        </button>
-      </form>
+      {/* Write form — left: 닉네임/비밀번호, right: 내용 */}
+      <CommentWriteForm
+        author={author}
+        password={password}
+        content={content}
+        onAuthorChange={setAuthor}
+        onPasswordChange={setPassword}
+        onContentChange={setContent}
+        onSubmit={handleSubmit}
+        sending={sending}
+        isComposingRef={isComposingRef}
+      />
       {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
     </div>
   );
@@ -252,9 +225,11 @@ function CommentItem({
   onDelete: (id: number) => void;
 }) {
   const [showReply, setShowReply] = useState(false);
-  const [replyAuthor, setReplyAuthor] = useState("ㅈㅈ");
+  const [replyAuthor, setReplyAuthor] = useState("");
+  const [replyPassword, setReplyPassword] = useState("");
   const [replyContent, setReplyContent] = useState("");
   const [replySending, setReplySending] = useState(false);
+  const replyComposeRef = useRef(false);
 
   const children = allComments.filter((c) => c.parent_id === comment.id);
 
@@ -311,66 +286,48 @@ function CommentItem({
 
           {/* Inline reply form */}
           {showReply && (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!replyAuthor.trim() || !replyContent.trim()) return;
-                setReplySending(true);
-                try {
-                  const res = await fetch("/api/comments", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      target_type: targetType,
-                      target_id: targetId,
-                      parent_id: comment.id,
-                      author: replyAuthor.trim(),
-                      content: replyContent.trim(),
-                    }),
-                  });
-                  if (res.ok) {
-                    const result = await res.json();
-                    if (result.secret_key) {
-                      saveCommentKey(result.id, result.secret_key);
+            <div className="mt-2">
+              <CommentWriteForm
+                compact
+                author={replyAuthor}
+                password={replyPassword}
+                content={replyContent}
+                onAuthorChange={setReplyAuthor}
+                onPasswordChange={setReplyPassword}
+                onContentChange={setReplyContent}
+                sending={replySending}
+                isComposingRef={replyComposeRef}
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!replyAuthor.trim() || !replyPassword.trim() || !replyContent.trim()) return;
+                  setReplySending(true);
+                  try {
+                    const res = await fetch("/api/comments", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        target_type: targetType,
+                        target_id: targetId,
+                        parent_id: comment.id,
+                        author: replyAuthor.trim(),
+                        password: replyPassword.trim(),
+                        content: replyContent.trim(),
+                      }),
+                    });
+                    if (res.ok) {
+                      const result = await res.json();
+                      saveCommentKey(result.id, replyPassword.trim());
                     }
-                  }
-                  setReplyAuthor("ㅈㅈ");
-                  setReplyContent("");
-                  setShowReply(false);
-                  onReplyComplete();
-                } catch {}
-                setReplySending(false);
-              }}
-              className="flex items-start gap-1.5 mt-2"
-            >
-              <input
-                type="text"
-                value={replyAuthor}
-                onChange={(e) => setReplyAuthor(e.target.value)}
-                placeholder="닉네임"
-                maxLength={20}
-                className="w-16 shrink-0 px-2 py-1 text-[11px] border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
+                    setReplyAuthor("");
+                    setReplyPassword("");
+                    setReplyContent("");
+                    setShowReply(false);
+                    onReplyComplete();
+                  } catch {}
+                  setReplySending(false);
+                }}
               />
-              <input
-                type="text"
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                placeholder="내용"
-                maxLength={1500}
-                className="flex-1 px-2 py-1 text-xs border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              />
-              <button
-                type="submit"
-                disabled={
-                  replySending || !replyAuthor.trim() || !replyContent.trim()
-                }
-                className="shrink-0 px-2 py-1 text-xs font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded transition-colors"
-              >
-                {replySending ? "..." : "등록"}
-              </button>
-            </form>
+            </div>
           )}
         </div>
       )}
@@ -396,5 +353,97 @@ function CommentItem({
         </div>
       )}
     </div>
+  );
+}
+
+function CommentWriteForm({
+  author,
+  password,
+  content,
+  onAuthorChange,
+  onPasswordChange,
+  onContentChange,
+  onSubmit,
+  sending,
+  isComposingRef,
+  compact = false,
+}: {
+  author: string;
+  password: string;
+  content: string;
+  onAuthorChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onContentChange: (value: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  sending: boolean;
+  isComposingRef: React.RefObject<boolean>;
+  compact?: boolean;
+}) {
+  const sideWidth = compact ? "w-20" : "w-28";
+  const fieldClass = compact
+    ? "w-full px-2 py-1 text-[10px] border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+    : "w-full px-2 py-1.5 text-[11px] border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const textareaClass = compact
+    ? "flex-1 min-h-[3.25rem] px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+    : "flex-1 min-h-[4.5rem] px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y";
+  const buttonClass = compact
+    ? "shrink-0 self-end px-2.5 py-1.5 text-[11px] font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded transition-colors"
+    : "shrink-0 self-end px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded-lg transition-colors";
+
+  const canSubmit =
+    author.trim().length > 0 &&
+    password.trim().length > 0 &&
+    content.trim().length > 0;
+
+  return (
+    <form onSubmit={onSubmit} className="flex items-stretch gap-2">
+      <div className={`flex flex-col gap-1 shrink-0 ${sideWidth}`}>
+        <input
+          type="text"
+          value={author}
+          onChange={(e) => onAuthorChange(e.target.value)}
+          placeholder="닉네임"
+          maxLength={20}
+          className={fieldClass}
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => onPasswordChange(e.target.value)}
+          placeholder="비밀번호"
+          maxLength={50}
+          className={fieldClass}
+          required
+        />
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => onContentChange(e.target.value)}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          isComposingRef.current = false;
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || e.shiftKey || isComposingRef.current) return;
+          e.preventDefault();
+          e.currentTarget.form?.requestSubmit();
+        }}
+        placeholder="내용"
+        rows={compact ? 2 : 3}
+        maxLength={1500}
+        className={textareaClass}
+        required
+      />
+      <button
+        type="submit"
+        disabled={sending || !canSubmit}
+        className={buttonClass}
+      >
+        {sending ? "..." : "등록"}
+      </button>
+    </form>
   );
 }
