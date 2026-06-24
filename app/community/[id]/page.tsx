@@ -97,7 +97,6 @@ export default function PostDetailPage({
 
   async function handleAdminDelete() {
     if (!post) return;
-    if (!confirm("관리자 권한으로 이 게시글과 댓글을 모두 삭제할까요?")) return;
 
     setAdminDeleting(true);
     setDelError("");
@@ -217,23 +216,14 @@ export default function PostDetailPage({
 
           {/* Delete */}
           <div className="px-5 pb-4">
-            {isAdmin && (
-              <button
-                onClick={handleAdminDelete}
-                disabled={adminDeleting}
-                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors mb-2"
-              >
-                <ShieldAlert className="w-3 h-3" />
-                {adminDeleting ? "삭제 중..." : "관리자 삭제 (게시글+댓글)"}
-              </button>
-            )}
             {!showConfirm ? (
               <button
                 onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-red-500 transition-colors"
+                disabled={adminDeleting}
+                className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-red-500 disabled:text-zinc-300 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
-                삭제
+                {adminDeleting ? "..." : null}
               </button>
             ) : !showDelete ? (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
@@ -242,20 +232,28 @@ export default function PostDetailPage({
                 </p>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setShowDelete(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                    onClick={() => {
+                      if (isAdmin) {
+                        handleAdminDelete();
+                        return;
+                      }
+                      setShowDelete(true);
+                    }}
+                    disabled={adminDeleting}
+                    className="px-3 py-1.5 text-xs font-medium bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-lg transition-colors"
                   >
-                    예
+                    {adminDeleting ? "..." : "확인"}
                   </button>
                   <button
                     onClick={() => {
                       setShowConfirm(false);
+                      setShowDelete(false);
                       setDelPwd("");
                       setDelError("");
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                   >
-                    아니오
+                    취소
                   </button>
                 </div>
               </div>

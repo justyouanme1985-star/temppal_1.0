@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquare, Shield, Trash2 } from "lucide-react";
+import { MessageSquare, Trash2 } from "lucide-react";
 import { useAdminSession } from "@/lib/hooks/useAdminSession";
 
 interface Comment {
@@ -133,8 +133,6 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
   }
 
   async function handleAdminDelete(id: number) {
-    if (!confirm("관리자 권한으로 이 댓글(및 답글)을 삭제할까요?")) return;
-
     setDeleting(id);
     try {
       const res = await fetch("/api/admin/comments", {
@@ -247,6 +245,7 @@ function CommentItem({
 }) {
   const [showReply, setShowReply] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [replyAuthor, setReplyAuthor] = useState("");
   const [replyPassword, setReplyPassword] = useState("");
@@ -268,6 +267,10 @@ function CommentItem({
     setDeletePassword("");
   }
 
+  function closeAdminConfirm() {
+    setShowAdminConfirm(false);
+  }
+
   return (
     <div
       className={`${depth > 0 ? "ml-4 pl-3 border-l-2 border-zinc-200 dark:border-zinc-700" : ""}`}
@@ -280,13 +283,13 @@ function CommentItem({
           {isAdmin && (
             <button
               type="button"
-              onClick={() => onAdminDelete(comment.id)}
+              onClick={() => setShowAdminConfirm(true)}
               disabled={deleting === comment.id}
               className="inline-flex items-center gap-0.5 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300"
               title="관리자 삭제"
             >
-              <Shield className="w-3 h-3" />
-              {deleting === comment.id ? "..." : "관리자 삭제"}
+              <Trash2 className="w-3 h-3" />
+              {deleting === comment.id ? "..." : null}
             </button>
           )}
         </div>
@@ -314,18 +317,31 @@ function CommentItem({
               </p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => onAdminDelete(comment.id)}
-                  disabled={deleting === comment.id}
-                  className="p-1 text-red-400 hover:text-red-600 disabled:text-zinc-300 transition-colors"
-                  title="관리자 삭제"
-                >
-                  <Shield className="w-3 h-3" />
-                </button>
-              )}
-              {showDelete ? (
+              {showAdminConfirm && isAdmin ? (
+                <div className="flex items-center gap-1">
+                  <span className={`${depth > 0 ? "text-[10px]" : "text-[11px]"} text-zinc-500 dark:text-zinc-400 whitespace-nowrap`}>
+                    삭제할까요?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAdminDelete(comment.id);
+                      closeAdminConfirm();
+                    }}
+                    disabled={deleting === comment.id}
+                    className={`${depth > 0 ? "text-[10px] px-1.5 py-1" : "text-[11px] px-2 py-1"} font-medium text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors`}
+                  >
+                    {deleting === comment.id ? "..." : "확인"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeAdminConfirm}
+                    className={`${depth > 0 ? "text-[10px]" : "text-[11px]"} text-zinc-400 hover:text-zinc-600 transition-colors`}
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : showDelete && !isAdmin ? (
                 <div className="flex items-center gap-1">
                   <input
                     type="password"
@@ -352,7 +368,7 @@ function CommentItem({
                     disabled={deleting === comment.id || !deletePassword.trim()}
                     className={`${depth > 0 ? "text-[10px] px-1.5 py-1" : "text-[11px] px-2 py-1"} font-medium text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors`}
                   >
-                    {deleting === comment.id ? "..." : "삭제"}
+                    {deleting === comment.id ? "..." : "확인"}
                   </button>
                   <button
                     type="button"
@@ -365,9 +381,17 @@ function CommentItem({
               ) : (
                 <button
                   type="button"
-                  onClick={openDeleteForm}
-                  className="p-1 text-zinc-300 hover:text-red-500 transition-colors"
-                  title="삭제"
+                  onClick={() => {
+                    if (isAdmin) {
+                      setShowAdminConfirm(true);
+                      setShowReply(false);
+                      return;
+                    }
+                    openDeleteForm();
+                  }}
+                  disabled={deleting === comment.id}
+                  className="p-1 text-zinc-300 hover:text-red-500 disabled:text-zinc-300 transition-colors"
+                  title={isAdmin ? "관리자 삭제" : "삭제"}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
