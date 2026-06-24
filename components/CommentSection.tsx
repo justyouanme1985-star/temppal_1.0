@@ -44,7 +44,7 @@ export function canDeleteComment(id: number): boolean {
 export default function CommentSection({ targetType, targetId, title }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [author, setAuthor] = useState("ㅈㅈ");
+  const [author, setAuthor] = useState("");
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +94,7 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
       if (result.secret_key) {
         saveCommentKey(result.id, result.secret_key);
       }
-      setAuthor("ㅈㅈ");
+      setAuthor("");
       setContent("");
       await loadComments();
     } catch {
