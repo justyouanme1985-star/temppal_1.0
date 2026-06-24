@@ -12,7 +12,7 @@ import {
   getSupabaseEquipmentSpec,
   formatEquipmentSpec,
   getEquipmentSpec,
-  getEquipmentImage,
+  resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
 import { getPlayersByEquipmentName, type Player } from "@/lib/playerData";
@@ -102,7 +102,16 @@ export default function EquipmentPageClient({
       let raw = getSupabaseEquipmentSpec(typeKey, equipmentName);
       if (raw) {
         if (mounted) {
-          setSpec(formatEquipmentSpec(raw, typeKey));
+          const formatted = formatEquipmentSpec(raw, typeKey, [equipmentName, linkKey]);
+          if (formatted && !formatted.image) {
+            formatted.image = resolveEquipmentImageUrl(
+              typeKey,
+              raw.key,
+              equipmentName,
+              linkKey,
+            );
+          }
+          setSpec(formatted);
           setLoading(false);
         }
         return;
@@ -113,7 +122,12 @@ export default function EquipmentPageClient({
         getEquipmentSpec(typeLabel, equipmentName) ??
         getEquipmentSpec(typeLabel, linkKey);
       if (staticSpec) {
-        const correctImage = getEquipmentImage(typeKey, linkKey);
+        const correctImage = resolveEquipmentImageUrl(
+          typeKey,
+          linkKey,
+          equipmentName,
+          staticSpec.brand ? `${staticSpec.brand} ${staticSpec.model}` : "",
+        );
         if (correctImage) staticSpec.image = correctImage;
         if (mounted) {
           setSpec(staticSpec as any);
@@ -122,7 +136,7 @@ export default function EquipmentPageClient({
         return;
       }
 
-      const imageOnly = getEquipmentImage(typeKey, linkKey);
+      const imageOnly = resolveEquipmentImageUrl(typeKey, linkKey, equipmentName);
       if (imageOnly && mounted) {
         setSpec({ brand: "", model: linkKey, image: imageOnly, _type: typeKey });
         setLoading(false);

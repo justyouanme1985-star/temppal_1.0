@@ -1522,27 +1522,54 @@ function getStaticDbKeysForCategory(category: string): string[] {
   }
 }
 
-/** Look up equipment image from hardcoded mapping, with static DB fallback. */
-export function getEquipmentImage(category: string, name: string): string {
-  const allKeys = getAllCatalogKeys();
-  const catalogKeys = allKeys.length > 0 ? allKeys : undefined;
+/** Resolve image URL — tries catalog key, player label, aliases, normalized keys, static DB. */
+export function resolveEquipmentImageUrl(category: string, ...names: string[]): string {
+  const uniqNames = [...new Set(names.filter(Boolean))];
 
-  let resolvedKey = name;
-  if (catalogKeys) {
-    resolvedKey = resolveCanonicalEquipmentKey(name, catalogKeys) ?? name;
+  for (const n of uniqNames) {
+    if (equipmentImages[n]) return equipmentImages[n];
   }
 
-  if (equipmentImages[resolvedKey]) return equipmentImages[resolvedKey];
-  if (equipmentImages[name]) return equipmentImages[name];
+  const lookupKeys = [
+    ...new Set([...getAllCatalogKeys(), ...getStaticDbKeysForCategory(category)]),
+  ];
 
-  const krLabel = categoryKrLabel[normalizeCategorySlug(category)] ?? categoryKrLabel[category];
+  for (const n of uniqNames) {
+    if (lookupKeys.length === 0) break;
+    const resolved = resolveCanonicalEquipmentKey(n, lookupKeys);
+    if (resolved && equipmentImages[resolved]) return equipmentImages[resolved];
+  }
+
+  for (const n of uniqNames) {
+    const norm = normalizeEquipmentLabel(n);
+    for (const [key, path] of Object.entries(equipmentImages)) {
+      if (normalizeEquipmentLabel(key) === norm) return path;
+    }
+  }
+
+  const krLabel = categoryKrLabel[normalizeCategorySlug(category)];
   if (krLabel) {
-    const staticSpec =
-      getEquipmentSpec(krLabel, resolvedKey) ?? getEquipmentSpec(krLabel, name);
-    if (staticSpec?.image) return staticSpec.image;
+    for (const n of uniqNames) {
+      const spec = getEquipmentSpec(krLabel, n);
+      if (spec?.image) return spec.image;
+    }
+    if (lookupKeys.length > 0) {
+      for (const n of uniqNames) {
+        const resolved = resolveCanonicalEquipmentKey(n, lookupKeys);
+        if (resolved) {
+          const spec = getEquipmentSpec(krLabel, resolved);
+          if (spec?.image) return spec.image;
+        }
+      }
+    }
   }
 
   return "";
+}
+
+/** Look up equipment image from hardcoded mapping, with static DB fallback. */
+export function getEquipmentImage(category: string, name: string): string {
+  return resolveEquipmentImageUrl(category, name);
 }
 
 /** Check if an equipment has a valid image mapping (used to filter player equipment icons) */
@@ -1551,12 +1578,18 @@ export function hasEquipmentImage(category: string, key: string): boolean {
 }
 
 /** Get equipment spec as a plain object suitable for EquipmentCard display */
-export function formatEquipmentSpec(raw: any, typeLabel: string): Record<string, any> | null {
+export function formatEquipmentSpec(
+  raw: any,
+  typeLabel: string,
+  extraNames: string[] = [],
+): Record<string, any> | null {
   if (!raw) return null;
 
-  const staticImage =
-    getEquipmentImage(typeLabel, raw.key || "") ||
-    findStaticImage(typeLabel, raw.key || "");
+  const staticImage = resolveEquipmentImageUrl(
+    typeLabel,
+    raw.key || "",
+    ...extraNames,
+  );
   
   return {
     _type: typeLabel,

@@ -8,7 +8,7 @@ import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
   getSupabaseEquipmentById,
-  getEquipmentImage,
+  resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
@@ -298,7 +298,9 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                           name: linkKey,
                           type: eq.label,
                           typeKey: eq.key,
-                          imgSrc: getEquipmentImage(eq.key, linkKey) || null,
+                          imgSrc:
+                            resolveEquipmentImageUrl(eq.key, linkKey, equipName) ||
+                            null,
                           spec,
                           brand: spec?.brand || "",
                           model: spec?.model || "",
