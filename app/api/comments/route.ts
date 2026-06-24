@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getClientIp } from "@/lib/security/clientIp";
+import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
+import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
-// Lazily created so module evaluation never fails when env vars are absent
-// (e.g. during `next build` page-data collection).
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
-// Never expose secret_key on read paths — deletion auth stays server-side only.
 const PUBLIC_COMMENT_COLUMNS =
   "id, target_type, target_id, parent_id, author, content, created_at, updated_at, deleted";
 
-// GET /api/comments?type=player|equipment&id=xxx
+const POST_LIMIT = 30;
+const DELETE_LIMIT = 60;
+const WINDOW_MS = 60 * 60 * 1000;
+
+function getSupabaseOrError() {
+  try {
+    return { supabase: getSupabaseAdmin(), error: null as NextResponse | null };
+  } catch {
+    return {
+      supabase: null,
+      error: NextResponse.json({ error: "서버 설정 오류입니다." }, { status: 503 }),
+    };
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const targetType = searchParams.get("type");
@@ -24,8 +30,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
   }
 
-  // Service role + explicit columns so publishable-key clients cannot SELECT secret_key via RLS.
-  const supabase = getSupabaseAdmin();
+  const { supabase, error: configError } = getSupabaseOrError();
+  if (configError || !supabase) return configError!;
+
   const { data, error } = await supabase
     .from("comments")
     .select(PUBLIC_COMMENT_COLUMNS)
@@ -34,14 +41,23 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("comments GET error:", error);
+    return NextResponse.json({ error: "댓글을 불러오지 못했습니다." }, { status: 500 });
   }
 
   return NextResponse.json(data);
 }
 
-// POST /api/comments — body: { target_type, target_id, parent_id?, author, content }
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rate = checkRateLimit(`comments-post:${ip}`, POST_LIMIT, WINDOW_MS);
+  if (!rate.ok) {
+    return NextResponse.json(
+      rateLimitResponse("댓글 작성 한도를 초과했습니다.", rate.resetAfterMs),
+      { status: 429 },
+    );
+  }
+
   try {
     const body = await req.json();
     const { target_type, target_id, parent_id, author, content } = body;
@@ -59,11 +75,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "내용은 1500자 이하로 입력해주세요." }, { status: 400 });
     }
 
-    // Generate a unique secret key for deletion
     const secretKey = crypto.randomUUID();
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("comments")
       .insert([{
         target_type,
@@ -77,18 +93,26 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("comments POST error:", error);
+      return NextResponse.json({ error: "댓글 작성에 실패했습니다." }, { status: 500 });
     }
 
-    // Return the secret key once on create so the client can store it in localStorage.
     return NextResponse.json({ ...data, secret_key: secretKey }, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 }
 
-// DELETE /api/comments — body: { id, secret_key }
 export async function DELETE(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rate = checkRateLimit(`comments-delete:${ip}`, DELETE_LIMIT, WINDOW_MS);
+  if (!rate.ok) {
+    return NextResponse.json(
+      rateLimitResponse("삭제 시도 한도를 초과했습니다.", rate.resetAfterMs),
+      { status: 429 },
+    );
+  }
+
   try {
     const body = await req.json();
     const { id, secret_key } = body;
@@ -97,9 +121,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID와 삭제 키가 필요합니다." }, { status: 400 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    // Verify the secret key matches
-    const { data: comment } = await supabaseAdmin
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
+
+    const { data: comment } = await supabase
       .from("comments")
       .select("secret_key, parent_id")
       .eq("id", id)
@@ -111,63 +136,53 @@ export async function DELETE(req: NextRequest) {
 
     const parentId = comment.parent_id;
 
-    // Check if this comment has any replies
-    const { count: replyCount } = await supabaseAdmin
+    const { count: replyCount } = await supabase
       .from("comments")
-      .select("*", { count: 'exact', head: true })
+      .select("*", { count: "exact", head: true })
       .eq("parent_id", id);
 
     if (replyCount && replyCount > 0) {
-      // Soft-delete: mark as deleted but keep for reply hierarchy
-      const { error } = await supabaseAdmin
+      const { error } = await supabase
         .from("comments")
-        .update({ deleted: true, content: '', author: '' })
+        .update({ deleted: true, content: "", author: "" })
         .eq("id", id);
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("comments soft-delete error:", error);
+        return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });
       }
       return NextResponse.json({ ok: true, soft: true });
     }
 
-    // No replies — safe to hard delete
-    const { error } = await supabaseAdmin
-      .from("comments")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("comments").delete().eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("comments delete error:", error);
+      return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });
     }
 
-    // Auto-cleanup: if parent is soft-deleted and has no remaining undeleted children, hard-delete it
     if (parentId) {
-      const { count: siblingCount } = await supabaseAdmin
+      const { count: siblingCount } = await supabase
         .from("comments")
-        .select("*", { count: 'exact', head: true })
+        .select("*", { count: "exact", head: true })
         .eq("parent_id", parentId)
         .eq("deleted", false);
 
       if (siblingCount === 0) {
-        // No undeleted children left — check if parent is soft-deleted
-        const { data: parent } = await supabaseAdmin
+        const { data: parent } = await supabase
           .from("comments")
           .select("deleted")
           .eq("id", parentId)
           .single();
 
-        if (parent && parent.deleted) {
-          // Hard-delete the parent too (it was only kept for its children)
-          await supabaseAdmin
-            .from("comments")
-            .delete()
-            .eq("id", parentId);
+        if (parent?.deleted) {
+          await supabase.from("comments").delete().eq("id", parentId);
         }
       }
     }
 
     return NextResponse.json({ ok: true, soft: false });
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 }

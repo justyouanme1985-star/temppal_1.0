@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { PUBLIC_COMMUNITY_POST_COLUMNS } from "@/lib/communityPosts";
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
+import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
 export async function GET(
   _req: NextRequest,
@@ -19,7 +12,13 @@ export async function GET(
     return NextResponse.json({ error: "잘못된 게시글 ID입니다." }, { status: 400 });
   }
 
-  const supabase = getSupabaseAdmin();
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch {
+    return NextResponse.json({ error: "서버 설정 오류입니다." }, { status: 503 });
+  }
+
   const { data, error } = await supabase
     .from("community_posts")
     .select(PUBLIC_COMMUNITY_POST_COLUMNS)

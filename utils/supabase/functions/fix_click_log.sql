@@ -177,8 +177,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO anon;
-GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO service_role;
 
 -- 2. Stand-alone function for generic equipment clicks (no player)
@@ -249,8 +247,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO anon;
-GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO service_role;
 
 -- 3. Add reference columns to click_stats if missing
@@ -293,8 +289,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO anon;
-GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO authenticated;
 GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO service_role;
 
 -- Refresh cache
