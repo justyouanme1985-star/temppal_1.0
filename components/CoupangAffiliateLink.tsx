@@ -27,7 +27,7 @@ export default function CoupangAffiliateLink({
     <a
       href={href}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       referrerPolicy="unsafe-url"
       onClick={(e) => {
         e.stopPropagation();

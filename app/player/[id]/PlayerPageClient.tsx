@@ -155,11 +155,12 @@ function EquipmentCard({
   }
 
   return (
-    <Link
-      href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(linkName)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
-      onClick={handleCardClick}
-      className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col no-underline"
-    >
+    <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col">
+      <Link
+        href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(linkName)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
+        onClick={handleCardClick}
+        className="block flex flex-col flex-1 no-underline min-h-0"
+      >
       {/* Equipment Image */}
       <div className="relative bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-48 group">
         {spec && spec.image ? (
@@ -342,32 +343,32 @@ function EquipmentCard({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 mt-auto pt-3">
-          {spec && spec.officialUrl && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleEquipmentBtnClick();
-                window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
-              }}
-              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
-              type="button"
-            >
-              <ExternalLink className="w-3 h-3" />
-              공식사이트
-            </button>
-          )}
-          <CoupangAffiliateLink
-            query={spec ? `${spec.brand} ${spec.model}` : name}
-            affiliateUrl={spec?.affiliate_url}
-            onNavigate={handleEquipmentBtnClick}
-            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer no-underline"
-          />
-        </div>
       </div>
-    </Link>
+      </Link>
+
+      {/* Action Buttons — outside Link so Coupang <a> is not nested inside Next.js Link */}
+      <div className="px-4 pb-4 flex gap-2">
+        {spec && spec.officialUrl && (
+          <button
+            onClick={() => {
+              handleEquipmentBtnClick();
+              window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
+            }}
+            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
+            type="button"
+          >
+            <ExternalLink className="w-3 h-3" />
+            공식사이트
+          </button>
+        )}
+        <CoupangAffiliateLink
+          query={spec ? `${spec.brand} ${spec.model}` : name}
+          affiliateUrl={spec?.affiliate_url}
+          onNavigate={handleEquipmentBtnClick}
+          className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer no-underline"
+        />
+      </div>
+    </div>
   );
 }
 
