@@ -153,6 +153,11 @@ BEGIN
       (COALESCE(count_items_cumulative, 0) * 1)
   WHERE id = p_player_id;
 
+  -- Snapshot current ranks before recalculating so rank-change arrows (↑/↓) stay balanced.
+  UPDATE gamers_info
+  SET previous_admin_power_ranking = COALESCE(admin_power_ranking, 0)
+  WHERE game = (SELECT game FROM gamers_info WHERE id = p_player_id);
+
   -- Recalculate admin_power_ranking for this player's game
   WITH ranked AS (
     SELECT id,
