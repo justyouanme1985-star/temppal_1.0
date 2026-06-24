@@ -1,7 +1,7 @@
 -- Comments table for player and equipment pages
 CREATE TABLE IF NOT EXISTS public.comments (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  target_type TEXT NOT NULL CHECK (target_type IN ('player', 'equipment')),
+  target_type TEXT NOT NULL CHECK (target_type IN ('player', 'equipment', 'community')),
   target_id TEXT NOT NULL,  -- player slug or equipment key
   parent_id BIGINT REFERENCES public.comments(id) ON DELETE CASCADE,
   author TEXT NOT NULL,

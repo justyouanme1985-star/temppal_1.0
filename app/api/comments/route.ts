@@ -45,6 +45,9 @@ export async function POST(req: NextRequest) {
     if (!target_type || !target_id || !author?.trim() || !content?.trim()) {
       return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 });
     }
+    if (!["player", "equipment", "community"].includes(target_type)) {
+      return NextResponse.json({ error: "잘못된 대상 유형입니다." }, { status: 400 });
+    }
     if (author.trim().length > 20) {
       return NextResponse.json({ error: "이름은 20자 이하로 입력해주세요." }, { status: 400 });
     }
