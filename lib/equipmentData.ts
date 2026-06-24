@@ -1,7 +1,7 @@
 // Auto-generated equipment database
 // Generated: 2026-04-03
 
-import { findBestEquipmentKey } from "./equipment/matchEquipment";
+import { resolveCanonicalEquipmentKey } from "./equipment/matchEquipment";
 
 export interface MouseSpec {
   brand: string;
@@ -1411,15 +1411,23 @@ export function getSupabaseEquipmentSpec(category: string, key: string): any | u
   if (!catCache) return undefined;
 
   const keys = Object.keys(catCache);
-  const bestKey = findBestEquipmentKey(key, keys);
-  if (bestKey) return catCache[bestKey];
+  const resolvedKey = resolveCanonicalEquipmentKey(key, keys);
+  if (resolvedKey) return catCache[resolvedKey];
 
-  return undefined;
+  const exactKey = keys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
+  return exactKey ? catCache[exactKey] : undefined;
+}
+
+/** Resolve player-side equipment label to canonical catalog key for URLs. */
+export function resolveEquipmentLinkKey(category: string, name: string): string {
+  const catCache = supabaseEquipCache[category];
+  if (!catCache) return name;
+  return resolveCanonicalEquipmentKey(name, Object.keys(catCache)) ?? name;
 }
 
 /** Check if an equipment has a valid image mapping (used to filter player equipment icons) */
 export function hasEquipmentImage(category: string, key: string): boolean {
-  // Check Supabase cache using our fuzzy matcher
+  // Check Supabase cache using exact key resolution
   const raw = getSupabaseEquipmentSpec(category, key);
   if (raw) {
     // If it maps to a Supabase key, check if that key has an image

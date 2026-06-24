@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import {
-  findBestEquipmentKey,
   playerUsesEquipment,
+  resolveCanonicalEquipmentKey,
 } from './equipment/matchEquipment';
 import {
   dedupeAndRank,
@@ -11,8 +11,6 @@ import {
   type RawPlayer,
 } from './playerMapping';
 
-// Cookie-free client for public read-only data. Allows the calling route to be
-// cached/revalidated instead of being forced dynamic by cookies().
 function createServerSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,8 +18,6 @@ function createServerSupabase() {
     { auth: { persistSession: false } },
   );
 }
-
-// ── Public API ───────────────────────────────────────────────────────────
 
 export async function getServerAllPlayers(): Promise<Player[]> {
   const supabase = createServerSupabase();
@@ -35,7 +31,6 @@ export async function getServerAllPlayers(): Promise<Player[]> {
   return dedupeAndRank((data ?? []) as RawPlayer[]);
 }
 
-/** Lightweight single-player fetch for SEO metadata and future API use. */
 export async function getServerPlayerByIgn(ign: string): Promise<Player | null> {
   if (!ign.trim()) return null;
   const supabase = createServerSupabase();
@@ -50,7 +45,7 @@ export async function getServerPlayerByIgn(ign: string): Promise<Player | null> 
   return mapRawToPlayer(data as RawPlayer);
 }
 
-/** Find all players who use equipment matching the given name (fuzzy, cross-language). */
+/** Find players whose gamers_info equipment exactly matches the canonical key. */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
   const supabase = createServerSupabase();
@@ -65,7 +60,8 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   }
 
   const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
-  const canonicalKey = findBestEquipmentKey(equipmentName, keys) ?? equipmentName;
+  const canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
+  if (!canonicalKey) return [];
 
   const { data: rawPlayers, error: playersError } = await supabase
     .from('gamers_info')
@@ -82,7 +78,7 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, equipmentName, canonicalKey)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey)) continue;
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));

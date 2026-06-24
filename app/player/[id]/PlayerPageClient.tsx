@@ -14,6 +14,7 @@ import {
   formatEquipmentSpec,
   getEquipmentSpec,
   equipmentImages,
+  resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
 
 const equipmentTypeMap: Record<string, string> = {
@@ -75,7 +76,7 @@ function EquipmentCard({
       }
       if (mounted) {
         setSpec(raw ? formatEquipmentSpec(raw, typeKey) : null);
-        setLinkName(raw?.key || name);
+        setLinkName(resolveEquipmentLinkKey(typeKey, name));
         setLoading(false);
       }
     }
