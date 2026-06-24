@@ -14,6 +14,7 @@ import {
   getEquipmentSpec,
   resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
+  getImageByCatalogId,
 } from "@/lib/equipmentData";
 import { getPlayersByEquipmentName, type Player } from "@/lib/playerData";
 
@@ -104,12 +105,9 @@ export default function EquipmentPageClient({
         if (mounted) {
           const formatted = formatEquipmentSpec(raw, typeKey, [equipmentName, linkKey]);
           if (formatted && !formatted.image) {
-            formatted.image = resolveEquipmentImageUrl(
-              typeKey,
-              raw.key,
-              equipmentName,
-              linkKey,
-            );
+            formatted.image =
+              getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
+              resolveEquipmentImageUrl(typeKey, raw.key, equipmentName, linkKey);
           }
           setSpec(formatted);
           setLoading(false);

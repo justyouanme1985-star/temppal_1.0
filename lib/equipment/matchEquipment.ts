@@ -60,6 +60,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   // Headsets
   "하이퍼엑스 클라우드 ii": "HyperX Cloud II",
   "로지텍 g pro wireless": "Logitech G Pro X Wireless Lightspeed",
+  "astro a50": "Logitech ASTRO A50",
 
   // Mousepads
   "스틸시리즈 qck heavy": "SteelSeries QcK Heavy",
@@ -197,6 +198,11 @@ export function playerUsesEquipment(
   for (const field of GAMER_EQUIPMENT_FIELDS) {
     const value = raw[field];
     if (typeof value !== "string" || !value.trim()) continue;
+
+    // gamers_info text as stored (case/space normalized)
+    if (equipmentValueMatchesKey(value, canonicalKey)) {
+      return true;
+    }
 
     const resolved = resolveCanonicalEquipmentKey(value, catalogKeys);
     if (resolved && equipmentValueMatchesKey(resolved, canonicalKey)) {

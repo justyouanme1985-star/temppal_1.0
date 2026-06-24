@@ -10,6 +10,7 @@ import {
   getSupabaseEquipmentById,
   resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
+  getImageByCatalogId,
 } from "@/lib/equipmentData";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
@@ -299,6 +300,10 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                           type: eq.label,
                           typeKey: eq.key,
                           imgSrc:
+                            getImageByCatalogId(
+                              eqData?.equipmentCatalogId ??
+                                (typeof spec?.id === "number" ? spec.id : null),
+                            ) ||
                             resolveEquipmentImageUrl(eq.key, linkKey, equipName) ||
                             null,
                           spec,

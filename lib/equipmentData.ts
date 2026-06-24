@@ -474,7 +474,7 @@ export const mouseDb: Record<string, MouseSpec> = {
 export const keyboardDb: Record<string, KeyboardSpec> = {
   "Logitech G Pro X Keyboard": {
     brand: "Logitech", model: "G Pro X Keyboard",
-    image: "/images/equipments/Logitech_G-Pro-X-Keyboard.webp",
+    image: "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
     switchType: "GX \uc2a4\uc704\uce58", layout: "TKL", connection: "\uc720\uc120", features: "RGB, \ud56b\uc2a4\uc651",
     officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-keyboards/pro-x-keyboard-clicky.html",
     coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20G%20Pro%20X%20Keyboard&channel=user",
@@ -869,7 +869,7 @@ export const headsetDb: Record<string, HeadsetSpec> = {
   },
   "ASTRO A50": {
     brand: "Logitech", model: "ASTRO A50",
-    image: "/images/equipments/ASTRO_A50.webp",
+    image: "/images/equipments/103005_ASTRO_A50.webp",
     driver: "40mm \ub124\uc624\ub514\ubbb4", freqResponse: "20 Hz - 20 kHz", impedance: "33 Ohms", sensitivity: "118 dB SPL",
     officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-audio/a50-gen-5-wireless-headset.html",
     coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20ASTRO%20A50&channel=user",
@@ -1522,6 +1522,24 @@ function getStaticDbKeysForCategory(category: string): string[] {
   }
 }
 
+/** Image paths indexed by equipment_info.id (from `{id}_*.webp` filenames). */
+let equipmentImagesById: Record<number, string> | null = null;
+
+function ensureEquipmentImagesById(): Record<number, string> {
+  if (equipmentImagesById) return equipmentImagesById;
+  equipmentImagesById = {};
+  for (const path of Object.values(equipmentImages)) {
+    const match = path.match(/\/(\d+)_/);
+    if (match) equipmentImagesById[parseInt(match[1], 10)] = path;
+  }
+  return equipmentImagesById;
+}
+
+export function getImageByCatalogId(catalogId: number | null | undefined): string {
+  if (catalogId == null) return "";
+  return ensureEquipmentImagesById()[catalogId] ?? "";
+}
+
 /** Resolve image URL — tries catalog key, player label, aliases, normalized keys, static DB. */
 export function resolveEquipmentImageUrl(category: string, ...names: string[]): string {
   const uniqNames = [...new Set(names.filter(Boolean))];
@@ -1585,11 +1603,9 @@ export function formatEquipmentSpec(
 ): Record<string, any> | null {
   if (!raw) return null;
 
-  const staticImage = resolveEquipmentImageUrl(
-    typeLabel,
-    raw.key || "",
-    ...extraNames,
-  );
+  const staticImage =
+    getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
+    resolveEquipmentImageUrl(typeLabel, raw.key || "", ...extraNames);
   
   return {
     _type: typeLabel,
@@ -1706,7 +1722,8 @@ export const equipmentImages: Record<string, string> = {
   "Logitech G PRO X": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X 2": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X Mechanical Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
-  "Logitech G Pro X Keyboard": "/images/equipments/Logitech_G-Pro-X-Keyboard.webp",
+  "Logitech G Pro X Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+  "ASTRO A50": "/images/equipments/103005_ASTRO_A50.webp",
   "로지텍 G PRO X 기계식 키보드": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
   "Logitech G PRO X SUPERLIGHT": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
   "Logitech G PRO X SUPERLIGHT 2": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",

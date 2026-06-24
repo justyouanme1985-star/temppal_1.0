@@ -14,6 +14,7 @@ import {
   getSupabaseEquipmentById,
   formatEquipmentSpec,
   getEquipmentSpec,
+  getImageByCatalogId,
   resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
@@ -73,7 +74,9 @@ function EquipmentCard({
         const staticSpec =
           getEquipmentSpec(type, name) ??
           getEquipmentSpec(type, linkKey);
-        const image = resolveEquipmentImageUrl(typeKey, name, linkKey);
+        const image =
+          getImageByCatalogId(equipmentCatalogId) ||
+          resolveEquipmentImageUrl(typeKey, name, linkKey);
         if (staticSpec || image) {
           const specObj = staticSpec
             ? { ...staticSpec, _type: typeKey }
@@ -93,7 +96,9 @@ function EquipmentCard({
       if (mounted) {
         const formatted = formatEquipmentSpec(raw, typeKey, [name, linkKey]);
         if (formatted && !formatted.image) {
-          formatted.image = resolveEquipmentImageUrl(typeKey, raw.key, name, linkKey);
+          formatted.image =
+            getImageByCatalogId(typeof raw.id === "number" ? raw.id : equipmentCatalogId) ||
+            resolveEquipmentImageUrl(typeKey, raw.key, name, linkKey);
         }
         setSpec(formatted);
         setLinkName(linkKey);
