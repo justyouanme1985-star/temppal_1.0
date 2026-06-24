@@ -41,6 +41,14 @@ export const getServerAllPlayers = unstable_cache(
   { revalidate: 60, tags: [PLAYERS_CACHE_TAG] },
 );
 
+/** Lookup a single player by URL slug (ign, lowercased). Uses cached player list. */
+export async function getServerPlayerById(id: string): Promise<Player | null> {
+  const slug = id.toLowerCase().trim();
+  if (!slug) return null;
+  const players = await getServerAllPlayers();
+  return players.find((p) => p.id === slug) ?? null;
+}
+
 /** Find all players who use a specific equipment name (exact, case-insensitive). */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
