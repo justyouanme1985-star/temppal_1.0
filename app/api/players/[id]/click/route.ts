@@ -1,6 +1,7 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { recalculateGameRankings } from "@/lib/ranking/recalculateGameRankings";
+import { PLAYERS_CACHE_TAG } from "@/lib/serverPlayerData";
 import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
 const MIN_CLICK_INTERVAL_MS = 10_000;
@@ -72,6 +73,7 @@ export async function POST(
 
   try {
     await recalculateGameRankings(supabase, numericId);
+    revalidateTag(PLAYERS_CACHE_TAG, "max");
     revalidatePath("/api/players");
   } catch (recalcError) {
     console.error("rank recalculation error:", recalcError);

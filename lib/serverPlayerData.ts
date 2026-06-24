@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import {
   dedupeAndRank,
@@ -6,6 +7,8 @@ import {
   type Player,
   type RawPlayer,
 } from './playerMapping';
+
+export const PLAYERS_CACHE_TAG = 'players-list';
 
 // Cookie-free client for public read-only data. Allows the calling route to be
 // cached/revalidated instead of being forced dynamic by cookies().
@@ -19,7 +22,7 @@ function createServerSupabase() {
 
 // ── Public API ───────────────────────────────────────────────────────────
 
-export async function getServerAllPlayers(): Promise<Player[]> {
+async function fetchAllPlayersFromDb(): Promise<Player[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.from('gamers_info').select('*');
 
@@ -30,6 +33,13 @@ export async function getServerAllPlayers(): Promise<Player[]> {
 
   return dedupeAndRank((data ?? []) as RawPlayer[]);
 }
+
+/** Cached server-side player list — one DB read per revalidate window. */
+export const getServerAllPlayers = unstable_cache(
+  fetchAllPlayersFromDb,
+  ['server-all-players'],
+  { revalidate: 60, tags: [PLAYERS_CACHE_TAG] },
+);
 
 /** Find all players who use a specific equipment name (exact, case-insensitive). */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
