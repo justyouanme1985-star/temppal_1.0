@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  normalizeEquipmentName,
   playerUsesEquipment,
   resolveCanonicalEquipmentKey,
 } from './equipment/matchEquipment';
@@ -63,7 +64,16 @@ export async function getServerPlayersByEquipmentName(
   }
 
   const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
-  const canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
+  const keyToId = new Map<string, number>();
+  for (const row of equipmentRows ?? []) {
+    if (row.key && typeof row.id === "number") keyToId.set(row.key, row.id);
+  }
+
+  let canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
+  if (!canonicalKey) {
+    const deep = normalizeEquipmentName(equipmentName);
+    canonicalKey = keys.find((key) => normalizeEquipmentName(key) === deep) ?? null;
+  }
   if (!canonicalKey) return [];
 
   const equipRow = (equipmentRows ?? []).find((row) => row.key === canonicalKey);
@@ -85,7 +95,7 @@ export async function getServerPlayersByEquipmentName(
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey, keys, equipmentId, equipCategory)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey, keys, equipmentId, equipCategory, keyToId)) continue;
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));

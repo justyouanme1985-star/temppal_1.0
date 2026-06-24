@@ -1,15 +1,72 @@
 /**
- * Equipment name resolution — exact match with label normalization.
- * Normalizes case + whitespace + "x2"/"x 2" glue only.
+ * Equipment name resolution — deterministic matching with label normalization.
+ * Normalizes case, whitespace, Korean↔English brand words, and "x2"/"x 2" glue.
  * Does NOT merge different models (e.g. superlight 2 vs superlight 2s).
  */
+
+import type { RawPlayer } from "../playerMapping";
+
+const BRAND_TRANSLATIONS: Record<string, string> = {
+  로지텍: "logitech",
+  레이저: "razer",
+  스틸시리즈: "steelseries",
+  코sair: "corsair",
+  corsair: "corsair",
+  조위: "zowie",
+  조위기어: "zowie",
+  엑스트리파이: "xtrfy",
+  하이퍼엑스: "hyperx",
+  아티zan: "artisan",
+  제닉스: "genesis",
+  필co: "filco",
+  덱: "deck",
+  레오폴드: "leopold",
+  벤큐: "benq",
+  에이수스: "asus",
+  lg: "lg",
+  삼성: "samsung",
+  앱코: "abko",
+  우크루즈: "wooting",
+  카카: "vaxee",
+  자오핀: "zaopin",
+  시디즈: "sidiz",
+};
+
+const WORD_TRANSLATIONS: Record<string, string> = {
+  기계식: "mechanical",
+  키보드: "keyboard",
+  마우스: "mouse",
+  헤드셋: "headset",
+  모니터: "monitor",
+  마우스패드: "mousepad",
+  패드: "pad",
+  의자: "chair",
+  책상: "desk",
+  무선: "wireless",
+  유선: "wired",
+  블랙: "black",
+  화이트: "white",
+  검정: "black",
+  검정색: "black",
+  흰색: "white",
+  게이밍: "gaming",
+  슈퍼라이트: "superlight",
+  미니옵: "pro",
+  바이퍼: "viper",
+  데스에더: "deathadder",
+  헌츠맨: "huntsman",
+  블랙샤크: "blackshark",
+  기간투스: "goliathus",
+  스트라이더: "strider",
+  클라우드: "cloud",
+};
 
 /** Alternate spellings / Korean labels → canonical equipment_info.key */
 export const EQUIPMENT_ALIASES: Record<string, string> = {
   // Logitech keyboards
   "로지텍 g pro x 기계식 키보드": "Logitech G PRO X Mechanical Keyboard",
   "logitech g pro x mechanical keyboard": "Logitech G PRO X Mechanical Keyboard",
-  "logitech g pro x keyboard": "Logitech G Pro X Keyboard",
+  "logitech g pro x keyboard": "Logitech G PRO X Mechanical Keyboard",
   "로지텍 g pro x tkl": "Logitech G PRO X TKL",
   "logitech g pro x tkl keyboard black": "Logitech G PRO X TKL",
 
@@ -29,6 +86,7 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
 
   // Logitech headset
   "로지텍 g pro x 2": "Logitech G PRO X 2",
+  "logitech g pro wireless": "Logitech G Pro X Wireless Lightspeed",
 
   // Razer mice
   "레이저 바이퍼 v3 pro": "Razer Viper V3 Pro",
@@ -59,12 +117,11 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
 
   // Headsets
   "하이퍼엑스 클라우드 ii": "HyperX Cloud II",
-  "로지텍 g pro wireless": "Logitech G Pro X Wireless Lightspeed",
   "astro a50": "Logitech ASTRO A50",
 
   // Mousepads
   "스틸시리즈 qck heavy": "SteelSeries QcK Heavy",
-  "아티산 제로 soft": "Artisan Zero Soft",
+  "아티isan 제로 soft": "Artisan Zero Soft",
   "아티zan 제로 xsoft": "Artisan Zero XSoft",
   "아티zan 하야테 오츠": "Artisan Hayate Otsu",
   "스틸 단패드": "SteelSeries QcK",
@@ -73,6 +130,15 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   // Monitors / misc (keep exact known variants)
   "필co 마제스터치 텐키리스 갈축": "Filco Majestouch Tenkeyless",
 };
+
+/** Same physical product, different catalog key spellings. Never mix 2 vs 2s. */
+const CATALOG_KEY_EQUIVALENTS: string[][] = [
+  ["Logitech G Pro X Keyboard", "Logitech G PRO X Mechanical Keyboard"],
+  ["Logitech G Pro X Wireless Headset", "Logitech G Pro X Wireless Lightspeed"],
+  ["ASTRO A50", "Logitech ASTRO A50"],
+  ["Logitech G Pro X Superlight 2", "Logitech G PRO X SUPERLIGHT 2"],
+  ["Logitech G Pro X2 Superlight", "Logitech G PRO X SUPERLIGHT 2"],
+];
 
 export const GAMER_EQUIPMENT_FIELDS = [
   "mouse",
@@ -122,6 +188,15 @@ function aliasKey(input: string): string {
   return input.trim().toLowerCase();
 }
 
+function lookupAlias(input: string): string | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+  return (
+    EQUIPMENT_ALIASES[aliasKey(trimmed)] ??
+    EQUIPMENT_ALIASES[normalizeEquipmentName(trimmed)]
+  );
+}
+
 /**
  * Normalize for comparison: lowercase, collapsed whitespace,
  * "x2"/"X2"/"x 2" → "x 2", model suffix letters preserved (2 ≠ 2s).
@@ -134,13 +209,34 @@ export function normalizeEquipmentLabel(input: string): string {
   return s.trim();
 }
 
+/** Deep normalize: punctuation, Korean brand/model words → English, then label rules. */
+export function normalizeEquipmentName(input: string): string {
+  let s = input.trim().toLowerCase();
+  s = s.replace(/[®™©]/g, "");
+  s = s.replace(/[-_/\\]+/g, " ");
+  s = s.replace(/\s+/g, " ");
+
+  for (const [ko, en] of Object.entries(BRAND_TRANSLATIONS)) {
+    s = s.replaceAll(ko.toLowerCase(), en);
+  }
+  for (const [ko, en] of Object.entries(WORD_TRANSLATIONS)) {
+    s = s.replaceAll(ko.toLowerCase(), en);
+  }
+
+  return normalizeEquipmentLabel(s);
+}
+
 function findCatalogKey(input: string, catalogKeys: string[]): string | null {
   const lower = input.trim().toLowerCase();
   const direct = catalogKeys.find((key) => key.toLowerCase() === lower);
   if (direct) return direct;
 
   const normalized = normalizeEquipmentLabel(input);
-  return catalogKeys.find((key) => normalizeEquipmentLabel(key) === normalized) ?? null;
+  const labelMatch = catalogKeys.find((key) => normalizeEquipmentLabel(key) === normalized);
+  if (labelMatch) return labelMatch;
+
+  const deep = normalizeEquipmentName(input);
+  return catalogKeys.find((key) => normalizeEquipmentName(key) === deep) ?? null;
 }
 
 /**
@@ -157,18 +253,49 @@ export function resolveCanonicalEquipmentKey(
   const direct = findCatalogKey(trimmed, catalogKeys);
   if (direct) return direct;
 
-  const aliasTarget = EQUIPMENT_ALIASES[aliasKey(trimmed)];
-  if (!aliasTarget) return null;
+  const aliasTarget = lookupAlias(trimmed);
+  if (aliasTarget) {
+    const resolved = findCatalogKey(aliasTarget, catalogKeys);
+    if (resolved) return resolved;
+  }
 
-  return findCatalogKey(aliasTarget, catalogKeys);
+  return null;
 }
 
-/** Normalized label equality (case/whitespace/x-glue only). */
+/** Normalized label equality (case/whitespace/x-glue + Korean↔English). */
 export function equipmentValueMatchesKey(value: string, canonicalKey: string): boolean {
-  return normalizeEquipmentLabel(value) === normalizeEquipmentLabel(canonicalKey);
+  if (normalizeEquipmentLabel(value) === normalizeEquipmentLabel(canonicalKey)) return true;
+  if (normalizeEquipmentName(value) === normalizeEquipmentName(canonicalKey)) return true;
+  return false;
 }
 
-import type { RawPlayer } from "../playerMapping";
+function collectEquivalentKeys(
+  targetKey: string,
+  catalogKeys: string[],
+  keyToId?: Map<string, number>,
+): Set<string> {
+  const equivalents = new Set<string>([targetKey]);
+  const targetNorm = normalizeEquipmentName(targetKey);
+
+  for (const key of catalogKeys) {
+    if (normalizeEquipmentName(key) === targetNorm) equivalents.add(key);
+    if (keyToId && keyToId.get(key) != null && keyToId.get(key) === keyToId.get(targetKey)) {
+      equivalents.add(key);
+    }
+  }
+
+  for (const group of CATALOG_KEY_EQUIVALENTS) {
+    const inGroup = group.some((member) => equipmentValueMatchesKey(member, targetKey));
+    if (!inGroup) continue;
+    for (const member of group) {
+      equivalents.add(member);
+      const resolved = findCatalogKey(member, catalogKeys);
+      if (resolved) equivalents.add(resolved);
+    }
+  }
+
+  return equivalents;
+}
 
 export function playerUsesEquipment(
   raw: RawPlayer,
@@ -176,6 +303,7 @@ export function playerUsesEquipment(
   catalogKeys: string[],
   equipmentId?: number | null,
   category?: string,
+  keyToId?: Map<string, number>,
 ): boolean {
   if (equipmentId != null) {
     const idColumn = category ? categoryToIdColumn(category) : null;
@@ -195,20 +323,28 @@ export function playerUsesEquipment(
     }
   }
 
-  for (const field of GAMER_EQUIPMENT_FIELDS) {
+  const targetResolved = resolveCanonicalEquipmentKey(canonicalKey, catalogKeys) ?? canonicalKey;
+  const matchKeys = collectEquivalentKeys(targetResolved, catalogKeys, keyToId);
+  const fields = category
+    ? GAMER_EQUIPMENT_FIELDS.filter((field) => EQUIPMENT_FIELD_TO_CATEGORY[field] === category)
+    : GAMER_EQUIPMENT_FIELDS;
+
+  for (const field of fields) {
     const value = raw[field];
     if (typeof value !== "string" || !value.trim()) continue;
 
-    // gamers_info text as stored (case/space normalized)
-    if (equipmentValueMatchesKey(value, canonicalKey)) {
-      return true;
+    for (const matchKey of matchKeys) {
+      if (equipmentValueMatchesKey(value, matchKey)) return true;
     }
 
     const resolved = resolveCanonicalEquipmentKey(value, catalogKeys);
-    if (resolved && equipmentValueMatchesKey(resolved, canonicalKey)) {
-      return true;
+    if (resolved) {
+      for (const matchKey of matchKeys) {
+        if (equipmentValueMatchesKey(resolved, matchKey)) return true;
+      }
     }
   }
+
   return false;
 }
 

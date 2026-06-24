@@ -43,7 +43,7 @@ const shouldExecute = process.argv.includes("--execute");
 const EQUIPMENT_ALIASES = {
   "로지텍 g pro x 기계식 키보드": "Logitech G PRO X Mechanical Keyboard",
   "logitech g pro x mechanical keyboard": "Logitech G PRO X Mechanical Keyboard",
-  "logitech g pro x keyboard": "Logitech G Pro X Keyboard",
+  "logitech g pro x keyboard": "Logitech G PRO X Mechanical Keyboard",
   "로지텍 g pro x tkl": "Logitech G PRO X TKL",
   "logitech g pro x tkl keyboard black": "Logitech G PRO X TKL",
   "로지텍 g pro x superlight 2": "Logitech G PRO X SUPERLIGHT 2",
