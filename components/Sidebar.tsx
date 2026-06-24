@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import {
+  notifyAdminSessionChange,
+  useAdminSession,
+} from "@/lib/hooks/useAdminSession";
 
 const games = [
   {
@@ -47,8 +51,16 @@ export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminPwd, setAdminPwd] = useState("");
-  const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
+  const { isAdmin, refresh } = useAdminSession();
+
+  async function handleLogout() {
+    await fetch("/api/admin", { method: "DELETE" });
+    setAdminMsg("");
+    setShowAdmin(false);
+    await refresh();
+    notifyAdminSessionChange();
+  }
 
   return (
     <aside
@@ -92,7 +104,7 @@ export default function Sidebar() {
               >
                 {game.image ? (
                   <img
-                    src={game.image} // ← Now using Vercel Blob URL
+                    src={game.image}
                     alt={game.name}
                     loading="lazy"
                     className="w-7 h-7 object-contain group-hover:scale-110 transition-transform shrink-0 dark:invert"
@@ -155,7 +167,7 @@ export default function Sidebar() {
       {/* Footer with admin */}
       {isExpanded && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 p-3">
-          {showAdmin && !adminAuthed ? (
+          {showAdmin && !isAdmin ? (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -165,11 +177,14 @@ export default function Sidebar() {
                   body: JSON.stringify({ password: adminPwd }),
                 });
                 if (res.ok) {
-                  localStorage.setItem("temppal_admin", "true");
-                  setAdminAuthed(true);
+                  setAdminPwd("");
                   setAdminMsg("관리자 모드 활성화");
+                  setShowAdmin(false);
+                  await refresh();
+                  notifyAdminSessionChange();
                 } else {
-                  setAdminMsg("비밀번호 불일치");
+                  const data = await res.json().catch(() => ({}));
+                  setAdminMsg(data.error || "비밀번호 불일치");
                 }
               }}
               className="flex items-center gap-1"
@@ -207,16 +222,14 @@ export default function Sidebar() {
               </span>
               <button
                 onClick={() => {
-                  if (adminAuthed) {
-                    localStorage.removeItem("temppal_admin");
-                    setAdminAuthed(false);
-                    setAdminMsg("");
+                  if (isAdmin) {
+                    handleLogout();
                   } else {
                     setShowAdmin(true);
                   }
                 }}
-                className={`transition-colors ${adminAuthed ? "text-green-500" : "text-zinc-300 hover:text-zinc-500 dark:hover:text-zinc-400"}`}
-                title={adminAuthed ? "관리자 로그아웃" : "관리자"}
+                className={`transition-colors ${isAdmin ? "text-green-500" : "text-zinc-300 hover:text-zinc-500 dark:hover:text-zinc-400"}`}
+                title={isAdmin ? "관리자 로그아웃" : "관리자"}
               >
                 <Shield className="w-3.5 h-3.5" />
               </button>
@@ -224,7 +237,7 @@ export default function Sidebar() {
           )}
           {adminMsg && (
             <p
-              className={`text-[10px] mt-1 ${adminAuthed ? "text-green-500" : "text-red-500"}`}
+              className={`text-[10px] mt-1 ${isAdmin ? "text-green-500" : "text-red-500"}`}
             >
               {adminMsg}
             </p>
@@ -239,9 +252,7 @@ export default function Sidebar() {
           className="w-full flex items-center justify-center py-2 text-zinc-300 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors border-t border-zinc-200 dark:border-zinc-700"
           title="관리자"
         >
-          <Shield
-            className={`w-4 h-4 ${adminAuthed ? "text-green-500" : ""}`}
-          />
+          <Shield className={`w-4 h-4 ${isAdmin ? "text-green-500" : ""}`} />
         </button>
       )}
     </aside>

@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp } from "@/lib/security/clientIp";
+import {
+  adminUnauthorizedResponse,
+  clearAdminSessionCookie,
+  isAdminConfigured,
+  isAdminRequest,
+  setAdminSessionCookie,
+} from "@/lib/security/adminSession";
 import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
 
-const ADMIN_PASSWORD = process.env.COMMENTS_ADMIN_PASSWORD || "";
 const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+export async function GET(req: NextRequest) {
+  if (!isAdminConfigured()) {
+    return NextResponse.json({ ok: false, configured: false });
+  }
+  return NextResponse.json({
+    ok: isAdminRequest(req),
+    configured: true,
+  });
+}
 
 export async function POST(req: NextRequest) {
-  if (!ADMIN_PASSWORD) {
-    return NextResponse.json({ ok: false, error: "관리자 기능이 설정되지 않았습니다." }, { status: 503 });
+  if (!isAdminConfigured()) {
+    return NextResponse.json(
+      { ok: false, error: "관리자 기능이 설정되지 않았습니다." },
+      { status: 503 },
+    );
   }
 
   const ip = getClientIp(req);
@@ -22,11 +41,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const { password } = await req.json();
-    if (!password || password !== ADMIN_PASSWORD) {
+    const adminPassword = process.env.COMMENTS_ADMIN_PASSWORD || "";
+    if (!password || password !== adminPassword) {
       return NextResponse.json({ ok: false }, { status: 403 });
     }
-    return NextResponse.json({ ok: true });
+
+    const res = NextResponse.json({ ok: true });
+    return setAdminSessionCookie(res);
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return adminUnauthorizedResponse();
+  }
+
+  const res = NextResponse.json({ ok: true });
+  return clearAdminSessionCookie(res);
 }

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MessageSquare, Plus } from "lucide-react";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import type { CommunityPostPublic } from "@/lib/communityPosts";
+import { useAdminSession } from "@/lib/hooks/useAdminSession";
 
 type Post = CommunityPostPublic;
 
@@ -34,6 +35,8 @@ export default function CommunityPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const { isAdmin } = useAdminSession();
   const pageSize = 20;
 
   useEffect(() => {
@@ -58,6 +61,29 @@ export default function CommunityPage() {
       /* ignore */
     }
     setLoading(false);
+  }
+
+  async function handleAdminDelete(post: Post) {
+    if (!confirm(`"${post.title}" 게시글과 댓글을 관리자 권한으로 삭제할까요?`)) return;
+
+    setDeletingId(post.id);
+    try {
+      const res = await fetch("/api/admin/community", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: post.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "삭제에 실패했습니다.");
+        return;
+      }
+      setPosts((prev) => prev.filter((item) => item.id !== post.id));
+    } catch {
+      alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -94,28 +120,51 @@ export default function CommunityPage() {
               <span className="w-20 shrink-0">닉네임</span>
               <span className="flex-1">제목</span>
               <span className="w-28 shrink-0 text-right">날짜</span>
+              {isAdmin && <span className="w-16 shrink-0 text-center">관리</span>}
             </div>
             {/* Table rows */}
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
               {posts.map((post, i) => (
-                <Link
+                <div
                   key={post.id}
-                  href={`/community/${post.id}`}
-                  className="flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors no-underline text-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors text-sm"
                 >
-                  <span className="w-12 shrink-0 text-center text-xs text-zinc-400 dark:text-zinc-500">
-                    {posts.length - i}
-                  </span>
-                  <span className="w-20 shrink-0 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {post.author_nickname}
-                  </span>
-                  <span className="flex-1 truncate font-medium text-zinc-900 dark:text-white">
-                    {post.title}
-                  </span>
-                  <span className="w-28 shrink-0 text-right text-[11px] text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
-                    {formatDateTime(post.created_at)}
-                  </span>
-                </Link>
+                  <Link
+                    href={`/community/${post.id}`}
+                    className="flex flex-1 items-center gap-2 min-w-0 no-underline"
+                  >
+                    <span className="w-12 shrink-0 text-center text-xs text-zinc-400 dark:text-zinc-500">
+                      {posts.length - i}
+                    </span>
+                    <span className="w-20 shrink-0 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {post.author_nickname}
+                    </span>
+                    <span className="flex-1 truncate font-medium text-zinc-900 dark:text-white">
+                      {post.title}
+                    </span>
+                    <span className="w-28 shrink-0 text-right text-[11px] text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                      {formatDateTime(post.created_at)}
+                    </span>
+                  </Link>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleAdminDelete(post)}
+                      disabled={deletingId === post.id}
+                      className="hidden md:inline-flex w-16 shrink-0 items-center justify-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300"
+                      title="관리자 삭제"
+                    >
+                      {deletingId === post.id ? (
+                        "..."
+                      ) : (
+                        <>
+                          <Trash2 className="w-3 h-3" />
+                          삭제
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>

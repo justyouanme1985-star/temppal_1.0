@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import type { CommunityPostPublic } from "@/lib/communityPosts";
+import { useAdminSession } from "@/lib/hooks/useAdminSession";
 
 type Post = CommunityPostPublic;
 
@@ -51,6 +52,8 @@ export default function PostDetailPage({
   const [showDelete, setShowDelete] = useState(false);
   const [delPwd, setDelPwd] = useState("");
   const [delError, setDelError] = useState("");
+  const [adminDeleting, setAdminDeleting] = useState(false);
+  const { isAdmin } = useAdminSession();
 
   useEffect(() => {
     async function load() {
@@ -90,6 +93,31 @@ export default function PostDetailPage({
     }
 
     router.push("/community");
+  }
+
+  async function handleAdminDelete() {
+    if (!post) return;
+    if (!confirm("관리자 권한으로 이 게시글과 댓글을 모두 삭제할까요?")) return;
+
+    setAdminDeleting(true);
+    setDelError("");
+    try {
+      const res = await fetch("/api/admin/community", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: post.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setDelError(data.error || "삭제에 실패했습니다.");
+        return;
+      }
+      router.push("/community");
+    } catch {
+      setDelError("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setAdminDeleting(false);
+    }
   }
 
   if (loading) {
@@ -189,6 +217,16 @@ export default function PostDetailPage({
 
           {/* Delete */}
           <div className="px-5 pb-4">
+            {isAdmin && (
+              <button
+                onClick={handleAdminDelete}
+                disabled={adminDeleting}
+                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors mb-2"
+              >
+                <ShieldAlert className="w-3 h-3" />
+                {adminDeleting ? "삭제 중..." : "관리자 삭제 (게시글+댓글)"}
+              </button>
+            )}
             {!showConfirm ? (
               <button
                 onClick={() => setShowConfirm(true)}
