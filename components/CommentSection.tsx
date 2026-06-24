@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquare, Trash2 } from "lucide-react";
 
 interface Comment {
@@ -49,6 +49,7 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<number | null>(null);
+  const isComposingRef = useRef(false);
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -197,6 +198,17 @@ export default function CommentSection({ targetType, targetId, title }: Props) {
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onCompositionStart={() => {
+            isComposingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            isComposingRef.current = false;
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey || isComposingRef.current) return;
+            e.preventDefault();
+            e.currentTarget.form?.requestSubmit();
+          }}
           placeholder="내용"
           rows={1}
           maxLength={1500}
