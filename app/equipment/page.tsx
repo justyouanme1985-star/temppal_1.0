@@ -121,7 +121,7 @@ export default function EquipmentRankingPage() {
       const equipRes = await supabase
         .from("equipment_info")
         .select(
-          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
+          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, affiliate_url, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
         )
         .order("category", { ascending: true })
         .order("popularity_rank", { ascending: true });

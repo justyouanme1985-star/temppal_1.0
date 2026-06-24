@@ -14,6 +14,7 @@ import {
   getEquipmentSpec,
   resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
+  resolveEquipmentAffiliateUrl,
   getImageByCatalogId,
 } from "@/lib/equipmentData";
 import { getPlayersByEquipmentName, type Player } from "@/lib/playerData";
@@ -98,16 +99,25 @@ export default function EquipmentPageClient({
     async function load() {
       await loadEquipmentFromSupabase();
       const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
+      const affiliateUrl =
+        resolveEquipmentAffiliateUrl(typeKey, equipmentName) ??
+        resolveEquipmentAffiliateUrl(typeKey, linkKey);
 
       // Try Supabase first
-      let raw = getSupabaseEquipmentSpec(typeKey, equipmentName);
+      let raw =
+        getSupabaseEquipmentSpec(typeKey, equipmentName) ??
+        getSupabaseEquipmentSpec(typeKey, linkKey);
       if (raw) {
         if (mounted) {
           const formatted = formatEquipmentSpec(raw, typeKey, [equipmentName, linkKey]);
-          if (formatted && !formatted.image) {
-            formatted.image =
-              getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
-              resolveEquipmentImageUrl(typeKey, raw.key, equipmentName, linkKey);
+          if (formatted) {
+            if (!formatted.image) {
+              formatted.image =
+                getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
+                resolveEquipmentImageUrl(typeKey, raw.key, equipmentName, linkKey);
+            }
+            formatted.affiliate_url =
+              affiliateUrl ?? formatted.affiliate_url ?? null;
           }
           setSpec(formatted);
           setLoading(false);
@@ -128,7 +138,7 @@ export default function EquipmentPageClient({
         );
         if (correctImage) staticSpec.image = correctImage;
         if (mounted) {
-          setSpec(staticSpec as any);
+          setSpec({ ...(staticSpec as any), affiliate_url: affiliateUrl });
           setLoading(false);
         }
         return;
@@ -136,7 +146,13 @@ export default function EquipmentPageClient({
 
       const imageOnly = resolveEquipmentImageUrl(typeKey, linkKey, equipmentName);
       if (imageOnly && mounted) {
-        setSpec({ brand: "", model: linkKey, image: imageOnly, _type: typeKey });
+        setSpec({
+          brand: "",
+          model: linkKey,
+          image: imageOnly,
+          _type: typeKey,
+          affiliate_url: affiliateUrl,
+        });
         setLoading(false);
         return;
       }

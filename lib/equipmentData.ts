@@ -1466,6 +1466,11 @@ export function getSupabaseEquipmentById(id: number): any | undefined {
   return supabaseEquipById[id];
 }
 
+function pickAffiliateUrl(raw: { affiliate_url?: string | null } | undefined): string | null {
+  const url = raw?.affiliate_url?.trim();
+  return url ? url : null;
+}
+
 /** Resolve Coupang Partners affiliate_url from Supabase catalog (by id or name). */
 export function resolveEquipmentAffiliateUrl(
   category: string,
@@ -1473,11 +1478,11 @@ export function resolveEquipmentAffiliateUrl(
   catalogId?: number | null,
 ): string | null {
   if (catalogId != null) {
-    const byId = getSupabaseEquipmentById(catalogId);
-    if (byId?.affiliate_url) return byId.affiliate_url;
+    const byId = pickAffiliateUrl(getSupabaseEquipmentById(catalogId));
+    if (byId) return byId;
   }
-  const byName = getSupabaseEquipmentSpec(category, name);
-  if (byName?.affiliate_url) return byName.affiliate_url;
+  const byName = pickAffiliateUrl(getSupabaseEquipmentSpec(category, name));
+  if (byName) return byName;
   return null;
 }
 
