@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquare, Shield, Trash2 } from "lucide-react";
+import { MessageSquare, Trash2 } from "lucide-react";
 import { useAdminSession } from "@/lib/hooks/useAdminSession";
 
 interface Comment {
@@ -285,8 +285,8 @@ function CommentItem({
               className="inline-flex items-center gap-0.5 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300"
               title="관리자 삭제"
             >
-              <Shield className="w-3 h-3" />
-              {deleting === comment.id ? "..." : "관리자 삭제"}
+              <Trash2 className="w-3 h-3" />
+              {deleting === comment.id ? "..." : "삭제"}
             </button>
           )}
         </div>
@@ -314,18 +314,7 @@ function CommentItem({
               </p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => onAdminDelete(comment.id)}
-                  disabled={deleting === comment.id}
-                  className="p-1 text-red-400 hover:text-red-600 disabled:text-zinc-300 transition-colors"
-                  title="관리자 삭제"
-                >
-                  <Shield className="w-3 h-3" />
-                </button>
-              )}
-              {showDelete ? (
+              {showDelete && !isAdmin ? (
                 <div className="flex items-center gap-1">
                   <input
                     type="password"
@@ -365,9 +354,16 @@ function CommentItem({
               ) : (
                 <button
                   type="button"
-                  onClick={openDeleteForm}
-                  className="p-1 text-zinc-300 hover:text-red-500 transition-colors"
-                  title="삭제"
+                  onClick={() => {
+                    if (isAdmin) {
+                      onAdminDelete(comment.id);
+                      return;
+                    }
+                    openDeleteForm();
+                  }}
+                  disabled={deleting === comment.id}
+                  className="p-1 text-zinc-300 hover:text-red-500 disabled:text-zinc-300 transition-colors"
+                  title={isAdmin ? "관리자 삭제" : "삭제"}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>

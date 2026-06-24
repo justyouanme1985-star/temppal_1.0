@@ -217,23 +217,20 @@ export default function PostDetailPage({
 
           {/* Delete */}
           <div className="px-5 pb-4">
-            {isAdmin && (
-              <button
-                onClick={handleAdminDelete}
-                disabled={adminDeleting}
-                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300 transition-colors mb-2"
-              >
-                <ShieldAlert className="w-3 h-3" />
-                {adminDeleting ? "삭제 중..." : "관리자 삭제 (게시글+댓글)"}
-              </button>
-            )}
             {!showConfirm ? (
               <button
-                onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-red-500 transition-colors"
+                onClick={() => {
+                  if (isAdmin) {
+                    handleAdminDelete();
+                    return;
+                  }
+                  setShowConfirm(true);
+                }}
+                disabled={adminDeleting}
+                className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-red-500 disabled:text-zinc-300 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
-                삭제
+                {adminDeleting ? "삭제 중..." : "삭제"}
               </button>
             ) : !showDelete ? (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
