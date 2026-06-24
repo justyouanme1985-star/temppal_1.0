@@ -1,5 +1,7 @@
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import {
+  equipmentValueMatchesKey,
   playerUsesEquipment,
   resolveCanonicalEquipmentKey,
 } from './equipment/matchEquipment';
@@ -11,6 +13,8 @@ import {
   type RawPlayer,
 } from './playerMapping';
 
+export const PLAYERS_CACHE_TAG = 'players-list';
+
 function createServerSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +23,7 @@ function createServerSupabase() {
   );
 }
 
-export async function getServerAllPlayers(): Promise<Player[]> {
+async function fetchAllPlayersFromDb(): Promise<Player[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.from('gamers_info').select('*');
 
@@ -30,6 +34,13 @@ export async function getServerAllPlayers(): Promise<Player[]> {
 
   return dedupeAndRank((data ?? []) as RawPlayer[]);
 }
+
+/** Cached server-side player list — one DB read per revalidate window. */
+export const getServerAllPlayers = unstable_cache(
+  fetchAllPlayersFromDb,
+  ['server-all-players'],
+  { revalidate: 60, tags: [PLAYERS_CACHE_TAG] },
+);
 
 export async function getServerPlayerByIgn(ign: string): Promise<Player | null> {
   if (!ign.trim()) return null;
@@ -48,8 +59,8 @@ export async function getServerPlayerByIgn(ign: string): Promise<Player | null> 
 /** Find players whose gamers_info equipment exactly matches the canonical key. */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
-  const supabase = createServerSupabase();
 
+  const supabase = createServerSupabase();
   const { data: equipmentRows, error: equipError } = await supabase
     .from('equipment_info')
     .select('key');
@@ -63,26 +74,10 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   const canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
   if (!canonicalKey) return [];
 
-  const { data: rawPlayers, error: playersError } = await supabase
-    .from('gamers_info')
-    .select('*');
-
-  if (playersError) {
-    console.error('Server: failed to fetch gamers_info for equipment lookup', playersError);
-    throw playersError;
-  }
-
-  const seen = new Set<string>();
-  const result: Player[] = [];
-
-  for (const raw of rawPlayers ?? []) {
-    const typed = raw as RawPlayer;
-    if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey)) continue;
-
-    seen.add(typed.ign);
-    result.push(mapRawToPlayer(typed));
-  }
+  const allPlayers = await getServerAllPlayers();
+  const result = allPlayers.filter((player) =>
+    player.equipment.some((eq) => equipmentValueMatchesKey(eq.equipmentName, canonicalKey)),
+  );
 
   const gameOrder: Record<string, number> = { lol: 0, starcraft: 1, valorant: 2, battlegrounds: 3 };
   result.sort((a, b) => {

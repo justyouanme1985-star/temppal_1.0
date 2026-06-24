@@ -30,6 +30,7 @@ export async function getAllPlayers(): Promise<Player[]> {
   return (await res.json()) as Player[];
 }
 
+/** Prefer usePlayersByGame() — filters the shared React Query cache. */
 export async function getPlayersByGame(
   game: 'lol' | 'starcraft' | 'valorant' | 'battlegrounds',
 ): Promise<Player[]> {
@@ -41,6 +42,7 @@ export async function getPlayersByGame(
   return filtered;
 }
 
+/** Prefer filterPlayersByQuery() on cached list — avoids refetch per query. */
 export async function searchPlayers(query: string): Promise<Player[]> {
   if (!query.trim()) return [];
   const { matchesQuery } = await import('@/lib/koreanSearch');
