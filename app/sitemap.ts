@@ -1,7 +1,15 @@
 import type { MetadataRoute } from "next";
+import { EQUIPMENT_CATEGORY_KEYS } from "@/lib/equipmentLabels";
+import type { Game } from "@/lib/playerMapping";
 import { getSiteUrl } from "@/lib/site";
+import {
+  getServerEquipmentByCategory,
+  getServerGameCategoryEquipment,
+} from "@/lib/serverCategoryRanking";
 import { getServerAllPlayers } from "@/lib/serverPlayerData";
 import { getServerEquipmentSitemapEntries } from "@/lib/serverSitemapData";
+
+const GAMES: Game[] = ["lol", "starcraft", "valorant", "battlegrounds"];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSiteUrl();
@@ -19,9 +27,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
   ];
 
-  const [players, equipment] = await Promise.all([
+  const [players, equipment, ...categoryResults] = await Promise.all([
     getServerAllPlayers(),
     getServerEquipmentSitemapEntries(),
+    ...EQUIPMENT_CATEGORY_KEYS.map((category) =>
+      getServerEquipmentByCategory(category).then((items) => ({
+        type: "equipment" as const,
+        category,
+        count: items.length,
+      })),
+    ),
+    ...GAMES.flatMap((game) =>
+      EQUIPMENT_CATEGORY_KEYS.map((category) =>
+        getServerGameCategoryEquipment(game, category).then((items) => ({
+          type: "game" as const,
+          game,
+          category,
+          count: items.length,
+        })),
+      ),
+    ),
   ]);
 
   const playerRoutes: MetadataRoute.Sitemap = players
@@ -40,5 +65,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...playerRoutes, ...equipmentRoutes];
+  const categoryRoutes: MetadataRoute.Sitemap = categoryResults
+    .filter((result) => result.count > 0)
+    .map((result) => {
+      if (result.type === "equipment") {
+        return {
+          url: `${base}/equipment/${result.category}`,
+          lastModified: now,
+          changeFrequency: "daily" as const,
+          priority: 0.85,
+        };
+      }
+
+      return {
+        url: `${base}/${result.game}/${result.category}`,
+        lastModified: now,
+        changeFrequency: "daily" as const,
+        priority: 0.85,
+      };
+    });
+
+  return [
+    ...staticRoutes,
+    ...categoryRoutes,
+    ...playerRoutes,
+    ...equipmentRoutes,
+  ];
 }

@@ -61,8 +61,14 @@ function DeskIcon({ className }: { className?: string }) {
 
 export default function EquipmentRankingClient({
   initialEquipments,
+  title = "인기 장비 랭킹",
+  focusCategory,
+  hideCategoryNav = false,
 }: {
   initialEquipments: EquipmentRankItem[];
+  title?: string;
+  focusCategory?: string;
+  hideCategoryNav?: boolean;
 }) {
   const [equipments] = useState<EquipmentRankItem[]>(initialEquipments);
   const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
@@ -90,7 +96,11 @@ export default function EquipmentRankingClient({
   // Items per row (matches grid cols: 5 on xl)
   const ITEMS_PER_ROW = 5;
 
-  const groupedByCategory = categoryOrder.reduce(
+  const activeCategories = focusCategory
+    ? categoryOrder.filter((cat) => cat === focusCategory)
+    : categoryOrder;
+
+  const groupedByCategory = activeCategories.reduce(
     (acc, cat) => {
       acc[cat] = equipments.filter((e) => e.category === cat);
       return acc;
@@ -145,10 +155,11 @@ export default function EquipmentRankingClient({
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
       <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 text-center">
-        인기 장비 랭킹
+        {title}
       </h1>
 
       {/* Category Navigation Icons — smooth scroll */}
+      {!hideCategoryNav && (
       <div className="flex items-stretch justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
         {categoryOrder.map((cat) => {
           const items = groupedByCategory[cat] || [];
@@ -183,8 +194,9 @@ export default function EquipmentRankingClient({
           );
         })}
       </div>
+      )}
 
-      {categoryOrder.map((cat) => {
+      {activeCategories.map((cat) => {
         const items = groupedByCategory[cat] || [];
         if (items.length === 0) return null;
 
