@@ -3,7 +3,6 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   User,
@@ -13,19 +12,9 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import type { CommunityPostPublic } from "@/lib/communityPosts";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-interface Post {
-  id: number;
-  created_at: string;
-  author_nickname: string;
-  title: string;
-  content: string;
-  file_urls: string[];
-}
+type Post = CommunityPostPublic;
 
 function timeAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -65,17 +54,21 @@ export default function PostDetailPage({
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from("community_posts")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (!data) {
-        notFound();
-        return;
+      try {
+        const res = await fetch(`/api/community/${id}`);
+        if (res.status === 404) {
+          notFound();
+          return;
+        }
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const data: Post = await res.json();
+        setPost(data);
+      } catch {
+        /* ignore */
       }
-      setPost(data);
       setLoading(false);
     }
     load();
