@@ -7,6 +7,7 @@ import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import { equipmentImages } from "@/lib/equipmentData";
 import type { EquipmentRankItem } from "@/lib/serverEquipmentData";
+import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 
 const typeLabelMap: Record<string, string> = {
   mouse: "마우스",
@@ -72,6 +73,7 @@ export default function EquipmentRankingClient({
 }) {
   const [equipments] = useState<EquipmentRankItem[]>(initialEquipments);
   const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
+  useScrollRestore("scroll_equip_ranking");
 
   // Restore visibleRows on mount
   useEffect(() => {

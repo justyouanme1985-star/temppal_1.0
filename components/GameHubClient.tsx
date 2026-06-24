@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Player } from "@/lib/playerMapping";
 import type { Game } from "@/lib/playerMapping";
 import { getGameHubConfig } from "@/lib/gameHubConfig";
+import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 import PlayerCard from "./PlayerCard";
 import Image from "next/image";
 import Link from "next/link";
@@ -33,7 +34,10 @@ const gameAbbr: Record<string, string> = {
   battlegrounds: "배그",
 };
 
-const equipIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+const equipIconMap: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   마우스: Mouse,
   키보드: Keyboard,
   헤드셋: Headphones,
@@ -52,6 +56,7 @@ export default function GameHubClient({
 }) {
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const config = getGameHubConfig(game);
+  useScrollRestore(`scroll_game_${game}`);
 
   return (
     <div className="w-full bg-white dark:bg-black text-zinc-900 dark:text-white">

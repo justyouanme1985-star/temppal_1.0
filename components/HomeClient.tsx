@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type Player } from "@/lib/playerData";
 import { playerKeys } from "@/lib/hooks/usePlayers";
+import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 import PlayerCard from "@/components/PlayerCard";
 
 const games = [
@@ -135,6 +136,7 @@ export default function HomeClient({
   initialPlayers: Player[];
 }) {
   const queryClient = useQueryClient();
+  useScrollRestore("scroll_homepage");
 
   // Hydrate React Query cache so subsequent navigations are instant.
   useEffect(() => {

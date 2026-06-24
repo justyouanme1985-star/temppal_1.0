@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
 import type { Player } from "@/lib/playerMapping";
 import CommentSection from "@/components/CommentSection";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
@@ -349,6 +350,7 @@ function EquipmentCard({
 }
 
 export default function PlayerPageClient({ player }: { player: Player }) {
+  useScrollRestore("scroll_playerpage");
   return (
     <div className="flex-1 overflow-y-auto pb-1.5">
       <div className="max-w-4xl mx-auto px-4 py-6">

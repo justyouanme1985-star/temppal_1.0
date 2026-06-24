@@ -11,6 +11,7 @@ import type {
 } from "@/lib/serverEquipmentData";
 import CommentSection from "@/components/CommentSection";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 
 const gameNames: Record<string, string> = {
   lol: "리그 오브 레전드",
@@ -188,6 +189,7 @@ export default function EquipmentPageClient({
   data: EquipmentPageData;
 }) {
   const { typeLabel, equipmentName, spec, players } = data;
+  useScrollRestore("scroll_equippage");
 
   const displayTitle =
     spec?.brand && spec?.model ? `${spec.brand} ${spec.model}` : equipmentName;
