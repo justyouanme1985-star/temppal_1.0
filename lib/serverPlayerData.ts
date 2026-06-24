@@ -49,6 +49,14 @@ export async function getServerPlayerById(id: string): Promise<Player | null> {
   return players.find((p) => p.id === slug) ?? null;
 }
 
+/** Players for a single game, in power-ranking order from cached list. */
+export async function getServerPlayersByGame(
+  game: Player["game"],
+): Promise<Player[]> {
+  const players = await getServerAllPlayers();
+  return players.filter((p) => p.game === game);
+}
+
 /** Find all players who use a specific equipment name (exact, case-insensitive). */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
