@@ -173,6 +173,11 @@ BEGIN
   FROM ranked r
   WHERE g.id = r.id;
 
+  -- API throttling: /api/players/[id]/click checks gamers_info.last_clicked
+  UPDATE gamers_info
+  SET last_clicked = v_now
+  WHERE id = p_player_id;
+
   RETURN v_result;
 END;
 $$;

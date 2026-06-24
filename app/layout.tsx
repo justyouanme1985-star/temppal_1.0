@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import Footer from "@/components/Footer";
 import Sidebar from "@/components/Sidebar";
+import { defaultOpenGraph, getSiteUrl, SITE_NAME } from "@/lib/seo/site";
 
 const noto = Noto_Sans_KR({
   subsets: ["latin"],
@@ -14,8 +15,26 @@ const noto = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "템빨 - 프로들의 템",
-  description: "프로들이 실제로 쓰는 장비",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: "프로게이머가 실제로 사용하는 마우스, 키보드, 모니터 등 장비 정보와 인기 랭킹",
+  openGraph: {
+    ...defaultOpenGraph,
+    title: SITE_NAME,
+    description: "프로게이머가 실제로 사용하는 장비 정보",
+    url: getSiteUrl(),
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: "프로게이머가 실제로 사용하는 장비 정보",
+  },
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({
