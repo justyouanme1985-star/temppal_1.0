@@ -78,7 +78,7 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey, keys)) continue;
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));

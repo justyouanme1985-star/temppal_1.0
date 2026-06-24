@@ -12,7 +12,8 @@ import {
   getSupabaseEquipmentSpec,
   formatEquipmentSpec,
   getEquipmentSpec,
-  equipmentImages,
+  getEquipmentImage,
+  resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
 import { getPlayersByEquipmentName, type Player } from "@/lib/playerData";
 
@@ -109,7 +110,7 @@ export default function EquipmentPageClient({
       // Fall back to static DB
       const staticSpec = getEquipmentSpec(typeLabel, equipmentName);
       if (staticSpec) {
-        const correctImage = equipmentImages[equipmentName];
+        const correctImage = getEquipmentImage(typeKey, equipmentName);
         if (correctImage) staticSpec.image = correctImage;
         if (mounted) {
           setSpec(staticSpec as any);

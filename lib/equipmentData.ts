@@ -1425,25 +1425,49 @@ export function resolveEquipmentLinkKey(category: string, name: string): string 
   return resolveCanonicalEquipmentKey(name, Object.keys(catCache)) ?? name;
 }
 
+const categoryKrLabel: Record<string, string> = {
+  mouse: "마우스",
+  keyboard: "키보드",
+  headset: "헤드셋",
+  monitor: "모니터",
+  mousepad: "마우스패드",
+  chair: "의자",
+  desk: "책상",
+};
+
+/** Look up equipment image from hardcoded mapping, with static DB fallback. */
+export function getEquipmentImage(category: string, name: string): string {
+  const catCache = supabaseEquipCache[category];
+  const catalogKeys = catCache ? Object.keys(catCache) : [];
+  const resolvedKey =
+    catalogKeys.length > 0
+      ? resolveCanonicalEquipmentKey(name, catalogKeys) ?? name
+      : name;
+
+  if (equipmentImages[resolvedKey]) return equipmentImages[resolvedKey];
+  if (equipmentImages[name]) return equipmentImages[name];
+
+  const krLabel = categoryKrLabel[category];
+  if (krLabel) {
+    const staticSpec = getEquipmentSpec(krLabel, resolvedKey) ?? getEquipmentSpec(krLabel, name);
+    if (staticSpec?.image) return staticSpec.image;
+  }
+
+  return "";
+}
+
 /** Check if an equipment has a valid image mapping (used to filter player equipment icons) */
 export function hasEquipmentImage(category: string, key: string): boolean {
-  // Check Supabase cache using exact key resolution
-  const raw = getSupabaseEquipmentSpec(category, key);
-  if (raw) {
-    // If it maps to a Supabase key, check if that key has an image
-    if (equipmentImages[raw.key]) return true;
-  }
-  // Check static mapping directly just in case
-  if (equipmentImages[key]) return true;
-  return false;
+  return getEquipmentImage(category, key) !== "";
 }
 
 /** Get equipment spec as a plain object suitable for EquipmentCard display */
 export function formatEquipmentSpec(raw: any, typeLabel: string): Record<string, any> | null {
   if (!raw) return null;
-  
-  // Try to find image from old static DBs
-  const staticImage = findStaticImage(typeLabel, raw.key || '');
+
+  const staticImage =
+    getEquipmentImage(typeLabel, raw.key || "") ||
+    findStaticImage(typeLabel, raw.key || "");
   
   return {
     _type: typeLabel,
@@ -1560,6 +1584,7 @@ export const equipmentImages: Record<string, string> = {
   "Logitech G PRO X": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X 2": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X Mechanical Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+  "Logitech G Pro X Keyboard": "/images/equipments/Logitech_G-Pro-X-Keyboard.webp",
   "로지텍 G PRO X 기계식 키보드": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
   "Logitech G PRO X SUPERLIGHT": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
   "Logitech G PRO X SUPERLIGHT 2": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",

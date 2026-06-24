@@ -7,7 +7,8 @@ import { Player } from "@/lib/playerData";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
-  equipmentImages,
+  getEquipmentImage,
+  resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
@@ -287,12 +288,12 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                           eq.key,
                           equipName,
                         );
-                        const dbKey = spec?.key || equipName;
+                        const linkKey = resolveEquipmentLinkKey(eq.key, equipName);
                         setPopupEquip({
-                          name: equipName,
+                          name: linkKey,
                           type: eq.label,
                           typeKey: eq.key,
-                          imgSrc: equipmentImages[dbKey] || null,
+                          imgSrc: getEquipmentImage(eq.key, equipName) || null,
                           spec,
                           brand: spec?.brand || "",
                           model: spec?.model || "",

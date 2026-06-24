@@ -118,10 +118,17 @@ export function equipmentValueMatchesKey(value: string, canonicalKey: string): b
 
 import type { RawPlayer } from "../playerMapping";
 
-export function playerUsesEquipment(raw: RawPlayer, canonicalKey: string): boolean {
+export function playerUsesEquipment(
+  raw: RawPlayer,
+  canonicalKey: string,
+  catalogKeys: string[],
+): boolean {
   for (const field of GAMER_EQUIPMENT_FIELDS) {
     const value = raw[field];
-    if (typeof value === "string" && equipmentValueMatchesKey(value, canonicalKey)) {
+    if (typeof value !== "string" || !value.trim()) continue;
+
+    const resolved = resolveCanonicalEquipmentKey(value, catalogKeys);
+    if (resolved && equipmentValueMatchesKey(resolved, canonicalKey)) {
       return true;
     }
   }
