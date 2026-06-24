@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import {
   dedupeAndRank,
+  mapRawToPlayer,
   rankPlayers,
   type Player,
   type RawPlayer,
@@ -71,15 +72,37 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   const matchedKeys = fuzzyMatchKeys(equipRows as { key: string }[], equipmentName);
   if (matchedKeys.length === 0) return [];
 
-  // 2. Filter cached player list using fuzzy matching on equipment fields.
-  //    Matches color/size variants like "Superlight 2 Black" → "Superlight 2".
-  const players = await getServerAllPlayers();
-
-  const result = players.filter(player =>
-    player.equipment.some(eq =>
-      matchedKeys.some(mk => playerHasEquipment(eq.equipmentName, mk)),
-    ),
+  // 2. Search players using ilike with %% SQL wildcards (PostgREST syntax).
+  //    "%%Key%%" matches color/size variants like "Key Black".
+  const cols = ['mouse', 'keyboard', 'headset', 'monitor', 'mousepad', 'chair', 'desk'];
+  const orParts = matchedKeys.slice(0, 5).flatMap(k =>
+    cols.map(c => `${c}.ilike.%%${k.replace(/%/g, '')}%%`)
   );
+
+  const { data: rawPlayers } = await supabase
+    .from('gamers_info')
+    .select('*')
+    .or(orParts.join(','));
+
+  if (!rawPlayers || rawPlayers.length === 0) return [];
+
+  // 3. Filter out false positives: "Zowie G-SR" must not match "Zowie G-SR SE".
+  const resultSet = new Map<string, Player>();
+  for (const raw of rawPlayers as RawPlayer[]) {
+    const normIgn = (raw.ign || "").toLowerCase().trim();
+    if (!normIgn || resultSet.has(normIgn)) continue;
+    const player = mapRawToPlayer(raw);
+
+    // Verify: player MUST actually match via playerHasEquipment
+    const matches = player.equipment.some(eq =>
+      matchedKeys.some(mk => playerHasEquipment(eq.equipmentName, mk)),
+    );
+    if (matches) {
+      resultSet.set(normIgn, player);
+    }
+  }
+
+  const result = Array.from(resultSet.values());
   const gameOrder: Record<string, number> = { lol: 0, starcraft: 1, valorant: 2, battlegrounds: 3 };
   result.sort((a, b) => {
     const aRank = a.powerRanking ?? 999;
@@ -139,24 +162,20 @@ function playerHasEquipment(eqName: string, canonicalKey: string): boolean {
   const a = eqName.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
   const b = canonicalKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
 
-  // 1) Exact
+  // 1) Exact match
   if (a === b) return true;
 
-  // 2) Player data contains canonical key (safe direction)
-  if (a.includes(b)) return true;
-
-  // 3) Token match >= 50%
+  // 2) Token match >= 75% — no substring, prevents
+  //    "Zowie G-SR SE" → "Zowie G-SR" false positives (66.7% < 75%).
   const aTokens = a.split(' ').filter(t => t.length > 1);
   const bTokens = b.split(' ').filter(t => t.length > 1);
-  if (aTokens.length > 0 && bTokens.length > 0) {
-    let matchCount = 0;
-    for (const t of bTokens) {
-      if (aTokens.includes(t)) matchCount++;
-    }
-    return matchCount / Math.max(aTokens.length, bTokens.length) >= 0.5;
-  }
+  if (aTokens.length === 0 || bTokens.length === 0) return false;
 
-  return false;
+  let matchCount = 0;
+  for (const t of bTokens) {
+    if (aTokens.includes(t)) matchCount++;
+  }
+  return matchCount / Math.max(aTokens.length, bTokens.length) >= 0.75;
 }
 
 export { rankPlayers };
