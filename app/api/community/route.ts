@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { hashPassword, verifyPassword } from '@/lib/password';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     if (title.length > 100) {
       return NextResponse.json({ error: '제목은 100자를 초과할 수 없습니다.' }, { status: 400 });
     }
-    if (content.length > 10000) {
+    if (typeof content === 'string' && content.length > 10000) {
       return NextResponse.json({ error: '내용은 10000자를 초과할 수 없습니다.' }, { status: 400 });
     }
     if (author_nickname.length > 20) {
@@ -85,12 +86,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Insert ──
+    // ── Insert ── (store password as a salted scrypt hash, never plaintext)
     const { data, error } = await supabase
       .from('community_posts')
       .insert([{
         author_nickname,
-        author_password,
+        author_password: hashPassword(author_password),
         title,
         content: content || '',
         file_urls: files,
@@ -136,7 +137,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '게시글을 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    if (post.author_password !== password) {
+    if (!verifyPassword(password, post.author_password)) {
       return NextResponse.json({ error: '비밀번호가 일치하지 않습니다.' }, { status: 403 });
     }
 
