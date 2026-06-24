@@ -6,8 +6,14 @@
  * use it directly — this is the preferred Coupang Partners short link.
  * Otherwise fall back to a search-based affiliate link.
  */
+export function isValidCoupangPartnersUrl(url: string): boolean {
+  return /^https:\/\/link\.coupang\.com\//i.test(url.trim());
+}
+
 export function coupangLink(query: string, affiliateUrl?: string | null): string {
-  if (affiliateUrl) return affiliateUrl;
+  if (affiliateUrl && isValidCoupangPartnersUrl(affiliateUrl)) {
+    return affiliateUrl.trim();
+  }
   const trackingId = process.env.NEXT_PUBLIC_COUPANG_TRACKING_ID || "temppal-01";
   const searchUrl = `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(query)}`;
   return `https://link.coupang.com/re/CSHARES?url=${encodeURIComponent(searchUrl)}&shareId=${trackingId}`;

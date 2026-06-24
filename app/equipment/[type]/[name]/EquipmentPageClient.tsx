@@ -4,15 +4,18 @@ import { use, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
   formatEquipmentSpec,
   getEquipmentSpec,
-  equipmentImages,
+  resolveEquipmentImageUrl,
+  resolveEquipmentLinkKey,
+  resolveEquipmentAffiliateUrl,
+  getImageByCatalogId,
 } from "@/lib/equipmentData";
 import { getPlayersByEquipmentName, type Player } from "@/lib/playerData";
 
@@ -95,26 +98,62 @@ export default function EquipmentPageClient({
     let mounted = true;
     async function load() {
       await loadEquipmentFromSupabase();
+      const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
+      const affiliateUrl =
+        resolveEquipmentAffiliateUrl(typeKey, equipmentName) ??
+        resolveEquipmentAffiliateUrl(typeKey, linkKey);
 
       // Try Supabase first
-      let raw = getSupabaseEquipmentSpec(typeKey, equipmentName);
+      let raw =
+        getSupabaseEquipmentSpec(typeKey, equipmentName) ??
+        getSupabaseEquipmentSpec(typeKey, linkKey);
       if (raw) {
         if (mounted) {
-          setSpec(formatEquipmentSpec(raw, typeKey));
+          const formatted = formatEquipmentSpec(raw, typeKey, [equipmentName, linkKey]);
+          if (formatted) {
+            if (!formatted.image) {
+              formatted.image =
+                getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
+                resolveEquipmentImageUrl(typeKey, raw.key, equipmentName, linkKey);
+            }
+            formatted.affiliate_url =
+              affiliateUrl ?? formatted.affiliate_url ?? null;
+          }
+          setSpec(formatted);
           setLoading(false);
         }
         return;
       }
 
-      // Fall back to static DB
-      const staticSpec = getEquipmentSpec(typeLabel, equipmentName);
+      // Fall back to static DB (alias + normalized lookup)
+      const staticSpec =
+        getEquipmentSpec(typeLabel, equipmentName) ??
+        getEquipmentSpec(typeLabel, linkKey);
       if (staticSpec) {
-        const correctImage = equipmentImages[equipmentName];
+        const correctImage = resolveEquipmentImageUrl(
+          typeKey,
+          linkKey,
+          equipmentName,
+          staticSpec.brand ? `${staticSpec.brand} ${staticSpec.model}` : "",
+        );
         if (correctImage) staticSpec.image = correctImage;
         if (mounted) {
-          setSpec(staticSpec as any);
+          setSpec({ ...(staticSpec as any), affiliate_url: affiliateUrl });
           setLoading(false);
         }
+        return;
+      }
+
+      const imageOnly = resolveEquipmentImageUrl(typeKey, linkKey, equipmentName);
+      if (imageOnly && mounted) {
+        setSpec({
+          brand: "",
+          model: linkKey,
+          image: imageOnly,
+          _type: typeKey,
+          affiliate_url: affiliateUrl,
+        });
+        setLoading(false);
         return;
       }
 
@@ -133,7 +172,9 @@ export default function EquipmentPageClient({
   useEffect(() => {
     let mounted = true;
     async function load() {
-      const result = await getPlayersByEquipmentName(equipmentName);
+      await loadEquipmentFromSupabase();
+      const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
+      const result = await getPlayersByEquipmentName(linkKey, typeKey);
       if (mounted) {
         setPlayers(result);
         setPlayersLoading(false);
@@ -143,7 +184,7 @@ export default function EquipmentPageClient({
     return () => {
       mounted = false;
     };
-  }, [equipmentName]);
+  }, [typeKey, equipmentName]);
 
   // Loading state
   if (loading) {
@@ -293,20 +334,12 @@ export default function EquipmentPageClient({
                     공식사이트
                   </a>
                 )}
-                <button
-                  onClick={() =>
-                    openCoupangLink(
-                      coupangLink(
-                        spec ? `${spec.brand} ${spec.model}` : equipmentName,
-                        spec?.affiliate_url,
-                      ),
-                    )
-                  }
-                  className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  득템
-                </button>
+                <CoupangAffiliateLink
+                  query={spec ? `${spec.brand} ${spec.model}` : equipmentName}
+                  affiliateUrl={spec?.affiliate_url}
+                  className="flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 sm:py-2.5 rounded-lg transition-colors cursor-pointer no-underline"
+                  iconClassName="w-4 h-4"
+                />
               </div>
             </div>
           </div>

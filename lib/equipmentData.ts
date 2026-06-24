@@ -1,7 +1,11 @@
 // Auto-generated equipment database
 // Generated: 2026-04-03
 
-import { resolveCanonicalEquipmentKey } from "./equipment/matchEquipment";
+import {
+  normalizeEquipmentLabel,
+  resolveCanonicalEquipmentKey,
+  equipmentLabelsMatch,
+} from "./equipment/matchEquipment";
 
 export interface MouseSpec {
   brand: string;
@@ -474,7 +478,7 @@ export const mouseDb: Record<string, MouseSpec> = {
 export const keyboardDb: Record<string, KeyboardSpec> = {
   "Logitech G Pro X Keyboard": {
     brand: "Logitech", model: "G Pro X Keyboard",
-    image: "/images/equipments/Logitech_G-Pro-X-Keyboard.webp",
+    image: "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
     switchType: "GX \uc2a4\uc704\uce58", layout: "TKL", connection: "\uc720\uc120", features: "RGB, \ud56b\uc2a4\uc651",
     officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-keyboards/pro-x-keyboard-clicky.html",
     coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20G%20Pro%20X%20Keyboard&channel=user",
@@ -869,7 +873,7 @@ export const headsetDb: Record<string, HeadsetSpec> = {
   },
   "ASTRO A50": {
     brand: "Logitech", model: "ASTRO A50",
-    image: "/images/equipments/ASTRO_A50.webp",
+    image: "/images/equipments/103005_ASTRO_A50.webp",
     driver: "40mm \ub124\uc624\ub514\ubbb4", freqResponse: "20 Hz - 20 kHz", impedance: "33 Ohms", sensitivity: "118 dB SPL",
     officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-audio/a50-gen-5-wireless-headset.html",
     coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20ASTRO%20A50&channel=user",
@@ -1348,13 +1352,37 @@ export const deskDb: Record<string, DeskSpec> = {
 };
 
 // Lookup helpers
-export function getMouseSpec(name: string): MouseSpec | undefined { return mouseDb[name]; }
-export function getKeyboardSpec(name: string): KeyboardSpec | undefined { return keyboardDb[name]; }
-export function getHeadsetSpec(name: string): HeadsetSpec | undefined { return headsetDb[name]; }
-export function getMonitorSpec(name: string): MonitorSpec | undefined { return monitorDb[name]; }
-export function getMousepadSpec(name: string): MousepadSpec | undefined { return mousepadDb[name]; }
-export function getChairSpec(name: string): ChairSpec | undefined { return chairDb[name]; }
-export function getDeskSpec(name: string): DeskSpec | undefined { return deskDb[name]; }
+function resolveStaticSpec(db: Record<string, unknown>, name: string) {
+  if (db[name]) return db[name];
+  const keys = Object.keys(db);
+  const resolved = resolveCanonicalEquipmentKey(name, keys);
+  if (resolved && db[resolved]) return db[resolved];
+  const normalized = normalizeEquipmentLabel(name);
+  const matchKey = keys.find((k) => normalizeEquipmentLabel(k) === normalized);
+  return matchKey ? db[matchKey] : undefined;
+}
+
+export function getMouseSpec(name: string): MouseSpec | undefined {
+  return resolveStaticSpec(mouseDb as Record<string, unknown>, name) as MouseSpec | undefined;
+}
+export function getKeyboardSpec(name: string): KeyboardSpec | undefined {
+  return resolveStaticSpec(keyboardDb as Record<string, unknown>, name) as KeyboardSpec | undefined;
+}
+export function getHeadsetSpec(name: string): HeadsetSpec | undefined {
+  return resolveStaticSpec(headsetDb as Record<string, unknown>, name) as HeadsetSpec | undefined;
+}
+export function getMonitorSpec(name: string): MonitorSpec | undefined {
+  return resolveStaticSpec(monitorDb as Record<string, unknown>, name) as MonitorSpec | undefined;
+}
+export function getMousepadSpec(name: string): MousepadSpec | undefined {
+  return resolveStaticSpec(mousepadDb as Record<string, unknown>, name) as MousepadSpec | undefined;
+}
+export function getChairSpec(name: string): ChairSpec | undefined {
+  return resolveStaticSpec(chairDb as Record<string, unknown>, name) as ChairSpec | undefined;
+}
+export function getDeskSpec(name: string): DeskSpec | undefined {
+  return resolveStaticSpec(deskDb as Record<string, unknown>, name) as DeskSpec | undefined;
+}
 
 export function getEquipmentSpec(type: string, name: string) {
   switch (type) {
@@ -1374,7 +1402,66 @@ import { createBrowserClient } from '@supabase/ssr';
 
 // In-memory cache for equipment specs { category → { name → spec } }
 const supabaseEquipCache: Record<string, Record<string, any>> = {};
+const supabaseEquipByKey: Record<string, any> = {};
+const supabaseEquipById: Record<number, any> = {};
 let cacheLoaded = false;
+
+function normalizeCategorySlug(category: string | null | undefined): string {
+  return (category || "other").trim().toLowerCase();
+}
+
+function getAllCatalogKeys(): string[] {
+  return Object.keys(supabaseEquipByKey);
+}
+
+function buildCategoryKeyToId(
+  catCache: Record<string, any> | undefined,
+): Map<string, number> {
+  const keyToId = new Map<string, number>();
+  if (!catCache) return keyToId;
+  for (const [key, row] of Object.entries(catCache)) {
+    if (typeof row?.id === "number") keyToId.set(key, row.id);
+  }
+  return keyToId;
+}
+
+/** Fuzzy match player/catalog labels (edition, color, Korean variants). */
+function findFuzzyCatalogRow(
+  category: string,
+  name: string,
+): { key: string; row: any } | undefined {
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  if (!catCache) return undefined;
+
+  const catalogKeys = Object.keys(catCache);
+  const keyToId = buildCategoryKeyToId(catCache);
+
+  for (const catalogKey of catalogKeys) {
+    if (equipmentLabelsMatch(name, catalogKey, catalogKeys, keyToId)) {
+      return { key: catalogKey, row: catCache[catalogKey] };
+    }
+  }
+
+  return undefined;
+}
+
+function findAffiliateInCatalog(category: string, name: string): string | null {
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  if (!catCache) return null;
+
+  const catalogKeys = Object.keys(catCache);
+  const keyToId = buildCategoryKeyToId(catCache);
+
+  for (const catalogKey of catalogKeys) {
+    if (!equipmentLabelsMatch(name, catalogKey, catalogKeys, keyToId)) continue;
+    const url = pickAffiliateUrl(catCache[catalogKey]);
+    if (url) return url;
+  }
+
+  return null;
+}
 
 function createSupabaseClient() {
   return createBrowserClient(
@@ -1398,52 +1485,193 @@ export async function loadEquipmentFromSupabase(): Promise<void> {
   }
 
   for (const row of data || []) {
-    const cat = row.category || 'other';
+    const cat = normalizeCategorySlug(row.category);
     if (!supabaseEquipCache[cat]) supabaseEquipCache[cat] = {};
     supabaseEquipCache[cat][row.key] = row;
+    if (row.key) supabaseEquipByKey[row.key] = row;
+    if (typeof row.id === "number") supabaseEquipById[row.id] = row;
   }
   
   cacheLoaded = true;
 }
 
 export function getSupabaseEquipmentSpec(category: string, key: string): any | undefined {
-  const catCache = supabaseEquipCache[category];
-  if (!catCache) return undefined;
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  const allKeys = getAllCatalogKeys();
 
-  const keys = Object.keys(catCache);
-  const resolvedKey = resolveCanonicalEquipmentKey(key, keys);
-  if (resolvedKey) return catCache[resolvedKey];
+  if (catCache) {
+    const keys = Object.keys(catCache);
+    const resolvedKey = resolveCanonicalEquipmentKey(key, keys);
+    if (resolvedKey) return catCache[resolvedKey];
+  }
 
-  const exactKey = keys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
-  return exactKey ? catCache[exactKey] : undefined;
+  if (allKeys.length > 0) {
+    const resolvedKey = resolveCanonicalEquipmentKey(key, allKeys);
+    if (resolvedKey) return supabaseEquipByKey[resolvedKey];
+  }
+
+  const exactKey = allKeys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
+  if (exactKey) return supabaseEquipByKey[exactKey];
+
+  const fuzzy = findFuzzyCatalogRow(category, key);
+  return fuzzy?.row;
+}
+
+export function getSupabaseEquipmentById(id: number): any | undefined {
+  return supabaseEquipById[id];
+}
+
+function pickAffiliateUrl(raw: { affiliate_url?: string | null } | undefined): string | null {
+  const url = raw?.affiliate_url?.trim();
+  return url ? url : null;
+}
+
+/** Resolve Coupang Partners affiliate_url from Supabase catalog (by id or name). */
+export function resolveEquipmentAffiliateUrl(
+  category: string,
+  name: string,
+  catalogId?: number | null,
+): string | null {
+  if (catalogId != null) {
+    const byIdRow = getSupabaseEquipmentById(catalogId);
+    const byId = pickAffiliateUrl(byIdRow);
+    if (byId) return byId;
+    if (byIdRow?.key) {
+      const fromKey = findAffiliateInCatalog(category, byIdRow.key);
+      if (fromKey) return fromKey;
+    }
+  }
+
+  const byName = pickAffiliateUrl(getSupabaseEquipmentSpec(category, name));
+  if (byName) return byName;
+
+  return findAffiliateInCatalog(category, name);
 }
 
 /** Resolve player-side equipment label to canonical catalog key for URLs. */
 export function resolveEquipmentLinkKey(category: string, name: string): string {
-  const catCache = supabaseEquipCache[category];
-  if (!catCache) return name;
-  return resolveCanonicalEquipmentKey(name, Object.keys(catCache)) ?? name;
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  const allKeys = getAllCatalogKeys();
+
+  if (catCache) {
+    const resolved = resolveCanonicalEquipmentKey(name, Object.keys(catCache));
+    if (resolved) return resolved;
+  }
+
+  if (allKeys.length > 0) {
+    return resolveCanonicalEquipmentKey(name, allKeys) ?? name;
+  }
+
+  const staticKeys = getStaticCatalogKeysForCategory(category);
+  if (staticKeys.length > 0) {
+    return resolveCanonicalEquipmentKey(name, staticKeys) ?? name;
+  }
+
+  return name;
+}
+
+const categoryKrLabel: Record<string, string> = {
+  mouse: "마우스",
+  keyboard: "키보드",
+  headset: "헤드셋",
+  monitor: "모니터",
+  mousepad: "마우스패드",
+  chair: "의자",
+  desk: "책상",
+};
+
+export function getStaticCatalogKeysForCategory(category: string): string[] {
+  const kr = categoryKrLabel[normalizeCategorySlug(category)];
+  if (!kr) return [];
+  switch (kr) {
+    case "마우스":
+      return Object.keys(mouseDb);
+    case "키보드":
+      return Object.keys(keyboardDb);
+    case "헤드셋":
+      return Object.keys(headsetDb);
+    case "모니터":
+      return Object.keys(monitorDb);
+    case "마우스패드":
+      return Object.keys(mousepadDb);
+    case "의자":
+      return Object.keys(chairDb);
+    case "책상":
+      return Object.keys(deskDb);
+    default:
+      return [];
+  }
+}
+
+/** Image paths indexed by equipment_info.id (from `{id}_*.webp` filenames). */
+let equipmentImagesById: Record<number, string> | null = null;
+
+function ensureEquipmentImagesById(): Record<number, string> {
+  if (equipmentImagesById) return equipmentImagesById;
+  equipmentImagesById = {};
+  for (const path of Object.values(equipmentImages)) {
+    const match = path.match(/\/(\d+)_/);
+    if (match) equipmentImagesById[parseInt(match[1], 10)] = path;
+  }
+  return equipmentImagesById;
+}
+
+export function getImageByCatalogId(catalogId: number | null | undefined): string {
+  if (catalogId == null) return "";
+  return ensureEquipmentImagesById()[catalogId] ?? "";
+}
+
+/** Resolve image URL — tries catalog key, player label, aliases, normalized keys, static DB. */
+export function resolveEquipmentImageUrl(category: string, ...names: string[]): string {
+  const uniqNames = [...new Set(names.filter(Boolean))];
+
+  for (const n of uniqNames) {
+    if (equipmentImages[n]) return equipmentImages[n];
+  }
+
+  const lookupKeys = [
+    ...new Set([...getAllCatalogKeys(), ...getStaticCatalogKeysForCategory(category)]),
+  ];
+
+  for (const n of uniqNames) {
+    if (lookupKeys.length === 0) break;
+    const resolved = resolveCanonicalEquipmentKey(n, lookupKeys);
+    if (resolved && equipmentImages[resolved]) return equipmentImages[resolved];
+  }
+
+  for (const n of uniqNames) {
+    const norm = normalizeEquipmentLabel(n);
+    for (const [key, path] of Object.entries(equipmentImages)) {
+      if (normalizeEquipmentLabel(key) === norm) return path;
+    }
+  }
+
+  return "";
+}
+
+/** Look up equipment image from hardcoded mapping, with static DB fallback. */
+export function getEquipmentImage(category: string, name: string): string {
+  return resolveEquipmentImageUrl(category, name);
 }
 
 /** Check if an equipment has a valid image mapping (used to filter player equipment icons) */
 export function hasEquipmentImage(category: string, key: string): boolean {
-  // Check Supabase cache using exact key resolution
-  const raw = getSupabaseEquipmentSpec(category, key);
-  if (raw) {
-    // If it maps to a Supabase key, check if that key has an image
-    if (equipmentImages[raw.key]) return true;
-  }
-  // Check static mapping directly just in case
-  if (equipmentImages[key]) return true;
-  return false;
+  return getEquipmentImage(category, key) !== "";
 }
 
 /** Get equipment spec as a plain object suitable for EquipmentCard display */
-export function formatEquipmentSpec(raw: any, typeLabel: string): Record<string, any> | null {
+export function formatEquipmentSpec(
+  raw: any,
+  typeLabel: string,
+  extraNames: string[] = [],
+): Record<string, any> | null {
   if (!raw) return null;
-  
-  // Try to find image from old static DBs
-  const staticImage = findStaticImage(typeLabel, raw.key || '');
+
+  const staticImage =
+    getImageByCatalogId(typeof raw.id === "number" ? raw.id : null) ||
+    resolveEquipmentImageUrl(typeLabel, raw.key || "", ...extraNames);
   
   return {
     _type: typeLabel,
@@ -1560,6 +1788,8 @@ export const equipmentImages: Record<string, string> = {
   "Logitech G PRO X": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X 2": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X Mechanical Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+  "Logitech G Pro X Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+  "ASTRO A50": "/images/equipments/103005_ASTRO_A50.webp",
   "로지텍 G PRO X 기계식 키보드": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
   "Logitech G PRO X SUPERLIGHT": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
   "Logitech G PRO X SUPERLIGHT 2": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
@@ -1695,6 +1925,14 @@ export const equipmentImages: Record<string, string> = {
   "Zowie XL2566K": "/images/equipments/104002_XL2566K.webp",
   "ZOWIE XL2566X+": "/images/equipments/104015_zowie_xl2566x.webp",
   "ABKO Hacker K995P V3": "/images/equipments/102067_Abko Hacker K995P V3.webp",
+  "Razer DeathAdder V3 Pro Faker Edition": "/images/equipments/101027_DeathAdder_V3_PRO.webp",
+  "Razer DeathAdder V3 Pro": "/images/equipments/101027_DeathAdder_V3_PRO.webp",
+  "Razer BlackShark V2 Pro Black": "/images/equipments/103006_BlackShark_V2.webp",
+  "Razer BlackShark V2 Pro": "/images/equipments/103006_BlackShark_V2.webp",
+  "Razer Gigantus V2": "/images/equipments/105005_Gigantus_V2_M.webp",
+  "Razer Huntsman V3 Pro Full Size": "/images/equipments/102010_Huntsman_V3_PRO.webp",
+  "Razer Huntsman V3 Pro": "/images/equipments/102010_Huntsman_V3_PRO.webp",
+  "Secretlab TITAN Evo T1 Edition": "/images/equipments/106001_TITAN_Evo_T1_Edition.webp",
 };
 
 

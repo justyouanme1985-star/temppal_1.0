@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import { ChevronDown, ExternalLink } from "lucide-react";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import { equipmentImages } from "@/lib/equipmentData";
 
 const typeLabelMap: Record<string, string> = {
@@ -121,7 +121,7 @@ export default function EquipmentRankingPage() {
       const equipRes = await supabase
         .from("equipment_info")
         .select(
-          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
+          "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, affiliate_url, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
         )
         .order("category", { ascending: true })
         .order("popularity_rank", { ascending: true });
@@ -315,10 +315,8 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
   const equipmentUrl = `/equipment/${item.category}/${encodeURIComponent(item.key)}`;
 
   return (
-    <Link
-      href={equipmentUrl}
-      className="flex flex-col bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
-    >
+    <div className="flex flex-col bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+      <Link href={equipmentUrl} className="flex flex-col flex-1 no-underline min-h-0">
       {/* Top: Rank badge + Brand + Model */}
       <div className="px-2.5 pt-2 pb-1 space-y-0.5">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -406,36 +404,28 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
         <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
           사용중인 선수 : {item.currently_used}명
         </div>
-        {/* Action Buttons */}
-        <div className="flex gap-1.5 mt-auto pt-1">
-          {item.officialUrl && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open(item.officialUrl, "_blank", "noopener,noreferrer");
-              }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors cursor-pointer"
-              type="button"
-            >
-              <ExternalLink className="w-2.5 h-2.5" />
-              공식사이트
-            </button>
-          )}
+      </div>
+      </Link>
+      <div className="px-2.5 pb-2.5 flex gap-1.5">
+        {item.officialUrl && (
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openCoupangLink(coupangLink(item.key, item.affiliate_url));
+            onClick={() => {
+              window.open(item.officialUrl, "_blank", "noopener,noreferrer");
             }}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white rounded-md transition-colors cursor-pointer"
             type="button"
           >
-            <ShoppingCart className="w-2.5 h-2.5" />
-            득템
+            <ExternalLink className="w-2.5 h-2.5" />
+            공식사이트
           </button>
-        </div>
+        )}
+        <CoupangAffiliateLink
+          query={item.key}
+          affiliateUrl={item.affiliate_url}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-md transition-colors cursor-pointer no-underline"
+          iconClassName="w-2.5 h-2.5"
+        />
       </div>
-    </Link>
+    </div>
   );
 }

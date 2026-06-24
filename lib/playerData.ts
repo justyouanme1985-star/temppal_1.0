@@ -50,9 +50,14 @@ export async function searchPlayers(query: string): Promise<Player[]> {
   );
 }
 
-export async function getPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
+export async function getPlayersByEquipmentName(
+  equipmentName: string,
+  category?: string,
+): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
-  const res = await fetch(`/api/players/by-equipment?name=${encodeURIComponent(equipmentName)}`);
+  const params = new URLSearchParams({ name: equipmentName });
+  if (category) params.set('category', category);
+  const res = await fetch(`/api/players/by-equipment?${params.toString()}`);
   if (!res.ok) return [];
   return (await res.json()) as Player[];
 }

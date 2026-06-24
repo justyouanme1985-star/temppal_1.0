@@ -7,9 +7,13 @@ import { Player } from "@/lib/playerData";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
-  equipmentImages,
+  getSupabaseEquipmentById,
+  resolveEquipmentImageUrl,
+  resolveEquipmentLinkKey,
+  resolveEquipmentAffiliateUrl,
+  getImageByCatalogId,
 } from "@/lib/equipmentData";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   Mouse,
   Keyboard,
@@ -23,7 +27,6 @@ import {
   Minus,
   X,
   ExternalLink,
-  ShoppingCart,
 } from "lucide-react";
 
 const equipmentIcons = [
@@ -58,6 +61,7 @@ export default function PlayerCard({ player }: PlayerCardProps) {
     brand: string;
     model: string;
     officialUrl: string;
+    affiliateUrl: string | null;
   } | null>(null);
 
   // Close popup on Escape
@@ -283,20 +287,34 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                         );
                         const equipName = eqData?.equipmentName || eq.label;
                         await loadEquipmentFromSupabase();
-                        const spec = getSupabaseEquipmentSpec(
-                          eq.key,
-                          equipName,
-                        );
-                        const dbKey = spec?.key || equipName;
+                        let spec = getSupabaseEquipmentSpec(eq.key, equipName);
+                        let linkKey = resolveEquipmentLinkKey(eq.key, equipName);
+                        const catalogId = eqData?.equipmentCatalogId;
+                        if (catalogId) {
+                          const byId = getSupabaseEquipmentById(catalogId);
+                          if (byId?.key) linkKey = byId.key;
+                          if (byId && !spec) spec = byId;
+                        }
+                        const affiliateUrl =
+                          spec?.affiliate_url ??
+                          resolveEquipmentAffiliateUrl(eq.key, equipName, catalogId) ??
+                          resolveEquipmentAffiliateUrl(eq.key, linkKey, catalogId);
                         setPopupEquip({
-                          name: equipName,
+                          name: linkKey,
                           type: eq.label,
                           typeKey: eq.key,
-                          imgSrc: equipmentImages[dbKey] || null,
+                          imgSrc:
+                            getImageByCatalogId(
+                              catalogId ??
+                                (typeof spec?.id === "number" ? spec.id : null),
+                            ) ||
+                            resolveEquipmentImageUrl(eq.key, linkKey, equipName) ||
+                            null,
                           spec,
                           brand: spec?.brand || "",
                           model: spec?.model || "",
                           officialUrl: spec?.officialUrl || "",
+                          affiliateUrl,
                         });
                       }}
                       className={`p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors group cursor-pointer`}
@@ -426,23 +444,16 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                     공식사이트
                   </button>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openCoupangLink(
-                      coupangLink(
-                        popupEquip.spec
-                          ? `${popupEquip.brand} ${popupEquip.model}`
-                          : popupEquip.name,
-                        popupEquip.spec?.affiliate_url,
-                      ),
-                    );
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors"
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  득템
-                </button>
+                <CoupangAffiliateLink
+                  query={
+                    popupEquip.spec
+                      ? `${popupEquip.brand} ${popupEquip.model}`
+                      : popupEquip.name
+                  }
+                  affiliateUrl={popupEquip.affiliateUrl}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white rounded-lg transition-colors no-underline"
+                  iconClassName="w-3.5 h-3.5"
+                />
               </div>
             </div>
           </div>,

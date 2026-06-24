@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  equipmentLabelsMatch,
+  normalizeEquipmentName,
   playerUsesEquipment,
   resolveCanonicalEquipmentKey,
 } from './equipment/matchEquipment';
+import { getStaticCatalogKeysForCategory } from './equipmentData';
 import {
   dedupeAndRank,
   mapRawToPlayer,
@@ -45,14 +48,17 @@ export async function getServerPlayerByIgn(ign: string): Promise<Player | null> 
   return mapRawToPlayer(data as RawPlayer);
 }
 
-/** Find players whose gamers_info equipment exactly matches the canonical key. */
-export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
+/** Find players using equipment by catalog id (preferred) or resolved key text match. */
+export async function getServerPlayersByEquipmentName(
+  equipmentName: string,
+  category?: string,
+): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
   const supabase = createServerSupabase();
 
   const { data: equipmentRows, error: equipError } = await supabase
     .from('equipment_info')
-    .select('key');
+    .select('id, key, category');
 
   if (equipError) {
     console.error('Server: failed to fetch equipment_info', equipError);
@@ -60,8 +66,28 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   }
 
   const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
-  const canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
-  if (!canonicalKey) return [];
+  const staticKeys = category ? getStaticCatalogKeysForCategory(category) : [];
+  const allKeys = [...new Set([...keys, ...staticKeys])];
+  const keyToId = new Map<string, number>();
+  for (const row of equipmentRows ?? []) {
+    if (row.key && typeof row.id === "number") keyToId.set(row.key, row.id);
+  }
+
+  let canonicalKey =
+    resolveCanonicalEquipmentKey(equipmentName, allKeys) ??
+    (() => {
+      const deep = normalizeEquipmentName(equipmentName);
+      return allKeys.find((key) => normalizeEquipmentName(key) === deep) ?? equipmentName.trim();
+    })();
+
+  const equipRow =
+    (equipmentRows ?? []).find((row) => row.key === canonicalKey) ??
+    (equipmentRows ?? []).find((row) =>
+      equipmentLabelsMatch(row.key, canonicalKey, allKeys, keyToId),
+    );
+  const equipmentId = equipRow?.id ?? null;
+  const equipCategory = (equipRow?.category || category || '').toLowerCase() || undefined;
+  const searchNames = [...new Set([equipmentName.trim(), canonicalKey])];
 
   const { data: rawPlayers, error: playersError } = await supabase
     .from('gamers_info')
@@ -78,7 +104,9 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey, allKeys, equipmentId, equipCategory, keyToId, searchNames)) {
+      continue;
+    }
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));

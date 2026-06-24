@@ -4,17 +4,20 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { usePlayerById } from "@/lib/hooks/usePlayers";
 import CommentSection from "@/components/CommentSection";
-import { coupangLink, openCoupangLink } from "@/lib/coupang";
+import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
+  getSupabaseEquipmentById,
   formatEquipmentSpec,
   getEquipmentSpec,
-  equipmentImages,
+  getImageByCatalogId,
+  resolveEquipmentImageUrl,
   resolveEquipmentLinkKey,
+  resolveEquipmentAffiliateUrl,
 } from "@/lib/equipmentData";
 
 const equipmentTypeMap: Record<string, string> = {
@@ -40,10 +43,12 @@ function formatDateString(s?: string) {
 function EquipmentCard({
   type,
   name,
+  equipmentCatalogId,
   playerDbId,
 }: {
   type: string;
   name: string;
+  equipmentCatalogId?: number;
   playerDbId?: number;
 }) {
   const [spec, setSpec] = useState<any>(null);
@@ -60,23 +65,55 @@ function EquipmentCard({
         if (mounted) setLoading(false);
         return;
       }
-      let raw = getSupabaseEquipmentSpec(typeKey, name);
+      let linkKey = resolveEquipmentLinkKey(typeKey, name);
+      let raw =
+        getSupabaseEquipmentSpec(typeKey, name) ??
+        getSupabaseEquipmentSpec(typeKey, linkKey);
+      if (equipmentCatalogId) {
+        const byId = getSupabaseEquipmentById(equipmentCatalogId);
+        if (byId?.key) linkKey = byId.key;
+        if (byId && !raw) raw = byId;
+      }
+      const affiliateUrl =
+        raw?.affiliate_url ??
+        resolveEquipmentAffiliateUrl(typeKey, name, equipmentCatalogId) ??
+        resolveEquipmentAffiliateUrl(typeKey, linkKey, equipmentCatalogId);
+      const resolvedImage =
+        getImageByCatalogId(equipmentCatalogId) ||
+        getImageByCatalogId(typeof raw?.id === "number" ? raw.id : null) ||
+        resolveEquipmentImageUrl(typeKey, name, linkKey, raw?.key);
       if (!raw) {
-        const staticSpec = getEquipmentSpec(type, name);
-        if (staticSpec) {
-          const correctImage = equipmentImages[name];
-          if (correctImage) staticSpec.image = correctImage;
+        const staticSpec =
+          getEquipmentSpec(type, name) ??
+          getEquipmentSpec(type, linkKey);
+        if (staticSpec || resolvedImage) {
+          const specObj = {
+            ...(staticSpec || {}),
+            _type: typeKey,
+            brand: staticSpec?.brand || "",
+            model: staticSpec?.model || linkKey,
+            image: resolvedImage || "",
+            affiliate_url: affiliateUrl,
+          };
           if (mounted) {
-            setSpec(staticSpec as any);
-            setLinkName(name);
+            setSpec(specObj);
+            setLinkName(linkKey);
             setLoading(false);
           }
+        } else if (mounted) {
+          setLinkName(linkKey);
+          setLoading(false);
         }
         return;
       }
       if (mounted) {
-        setSpec(raw ? formatEquipmentSpec(raw, typeKey) : null);
-        setLinkName(resolveEquipmentLinkKey(typeKey, name));
+        const formatted = formatEquipmentSpec(raw, typeKey, [name, linkKey]);
+        if (formatted) {
+          formatted.image = resolvedImage || formatted.image || "";
+          formatted.affiliate_url = affiliateUrl ?? formatted.affiliate_url;
+        }
+        setSpec(formatted);
+        setLinkName(linkKey);
         setLoading(false);
       }
     }
@@ -84,7 +121,7 @@ function EquipmentCard({
     return () => {
       mounted = false;
     };
-  }, [type, name]);
+  }, [type, name, equipmentCatalogId]);
 
   // Track equipment button clicks (debounced per player-equipment combo)
   function handleEquipmentBtnClick() {
@@ -120,11 +157,12 @@ function EquipmentCard({
   }
 
   return (
-    <Link
-      href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(linkName)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
-      onClick={handleCardClick}
-      className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col no-underline"
-    >
+    <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col">
+      <Link
+        href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(linkName)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
+        onClick={handleCardClick}
+        className="block flex flex-col flex-1 no-underline min-h-0"
+      >
       {/* Equipment Image */}
       <div className="relative bg-zinc-50 dark:bg-zinc-900 p-4 flex items-center justify-center h-48 group">
         {spec && spec.image ? (
@@ -307,44 +345,32 @@ function EquipmentCard({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 mt-auto pt-3">
-          {spec && spec.officialUrl && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleEquipmentBtnClick();
-                window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
-              }}
-              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
-              type="button"
-            >
-              <ExternalLink className="w-3 h-3" />
-              공식사이트
-            </button>
-          )}
+      </div>
+      </Link>
+
+      {/* Action Buttons — outside Link so Coupang <a> is not nested inside Next.js Link */}
+      <div className="px-4 pb-4 flex gap-2">
+        {spec && spec.officialUrl && (
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+            onClick={() => {
               handleEquipmentBtnClick();
-              openCoupangLink(
-                coupangLink(
-                  spec ? `${spec.brand} ${spec.model}` : name,
-                  spec?.affiliate_url,
-                ),
-              );
+              window.open(spec.officialUrl, "_blank", "noopener,noreferrer");
             }}
-            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-900 dark:text-white py-2 rounded-lg transition-colors cursor-pointer"
             type="button"
           >
-            <ShoppingCart className="w-3 h-3" />
-            득템
+            <ExternalLink className="w-3 h-3" />
+            공식사이트
           </button>
-        </div>
+        )}
+        <CoupangAffiliateLink
+          query={spec ? `${spec.brand} ${spec.model}` : name}
+          affiliateUrl={spec?.affiliate_url}
+          onNavigate={handleEquipmentBtnClick}
+          className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-[#FF6F00] hover:bg-[#E85E00] text-white py-2 rounded-lg transition-colors cursor-pointer no-underline"
+        />
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -623,6 +649,7 @@ export default function PlayerPageClient({ id }: { id: string }) {
                 key={eq.id}
                 type={eq.equipmentType}
                 name={eq.equipmentName}
+                equipmentCatalogId={eq.equipmentCatalogId}
                 playerDbId={player.dbId}
               />
             ))}
