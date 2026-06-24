@@ -42,12 +42,9 @@ export async function getPlayersByGame(
 }
 
 export async function searchPlayers(query: string): Promise<Player[]> {
-  if (!query.trim()) return [];
-  const { matchesQuery } = await import('@/lib/koreanSearch');
   const all = await getAllPlayers();
-  return all.filter((p) =>
-    matchesQuery(query, p.playerName, p.playerRealName, p.team, p.collectedWords),
-  );
+  const { filterPlayersByQuery } = await import('@/lib/playerSearch');
+  return filterPlayersByQuery(all, query);
 }
 
 export async function getPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getPlayersByGame, Player } from "@/lib/playerData";
+import { useState } from "react";
+import { usePlayersByGame } from "@/lib/hooks/usePlayers";
+import type { Player } from "@/lib/playerData";
 import PlayerCard from "./PlayerCard";
 import Image from "next/image";
 import Link from "next/link";
@@ -92,19 +93,10 @@ const equipIconMap: Record<string, any> = {
 };
 
 export default function Hero({ game = "lol" }: HeroProps) {
-  const [players, setPlayers] = useState<Player[]>(dummyPlayers);
+  const { data: loadedPlayers } = usePlayersByGame(game);
+  const players = loadedPlayers.length > 0 ? loadedPlayers : dummyPlayers;
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const config = gameConfig[game as keyof typeof gameConfig];
-
-  useEffect(() => {
-    let mounted = true;
-    getPlayersByGame(game).then((data) => {
-      if (mounted) setPlayers(data);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [game]);
 
   return (
     <div className="w-full bg-white dark:bg-black text-zinc-900 dark:text-white">

@@ -4,15 +4,17 @@ import { Search } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import SideMenu from "@/components/SideMenu";
-import { searchPlayers, Player } from "@/lib/playerData";
+import { useAllPlayers } from "@/lib/hooks/usePlayers";
+import { filterPlayersByQuery } from "@/lib/playerSearch";
+import type { Player } from "@/lib/playerData";
 import { scoreQuery } from "@/lib/koreanSearch";
 
 export default function SearchBar() {
+  const { data: allPlayers, isLoading: loadingPlayers } = useAllPlayers();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Player[]>([]);
   const [noResults, setNoResults] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -21,18 +23,18 @@ export default function SearchBar() {
   const pendingSubmitRef = useRef(false);
   const router = useRouter();
 
-  const search = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults([]);
-      setNoResults(false);
-      setSelectedIndex(-1);
-      return;
-    }
+  const search = useCallback(
+    (q: string) => {
+      if (!q.trim()) {
+        setResults([]);
+        setNoResults(false);
+        setSelectedIndex(-1);
+        return;
+      }
 
-    setIsLoading(true);
-    try {
-      const data = await searchPlayers(q);
-      const scored = data
+      if (!allPlayers) return;
+
+      const scored = filterPlayersByQuery(allPlayers, q)
         .map((p) => ({
           player: p,
           score: scoreQuery(
@@ -50,14 +52,18 @@ export default function SearchBar() {
 
       setResults(scored);
       setNoResults(scored.length === 0);
-    } catch (err) {
-      console.error("Search failed:", err);
-      setNoResults(true);
-    } finally {
-      setIsLoading(false);
-    }
-    setSelectedIndex(-1);
-  }, []);
+      setSelectedIndex(-1);
+    },
+    [allPlayers],
+  );
+
+  // Re-run search when the shared player cache finishes loading
+  useEffect(() => {
+    if (!query.trim() || !allPlayers) return;
+    search(query);
+  }, [allPlayers, query, search]);
+
+  const isLoading = loadingPlayers && query.trim().length > 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
