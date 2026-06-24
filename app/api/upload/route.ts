@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload to Supabase Storage
+    const supabase = getSupabase();
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from('community_attachments')
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '파일 업로드에 실패했습니다.' }, { status: 500 });
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = getSupabase().storage
       .from('community_attachments')
       .getPublicUrl(fileName);
 

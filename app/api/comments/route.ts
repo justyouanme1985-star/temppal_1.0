@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-);
+// Lazily created so module evaluation never fails when env vars are absent
+// (e.g. during `next build` page-data collection).
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  );
+}
 
 // Admin client with service role key for delete operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
 // GET /api/comments?type=player|equipment&id=xxx
 export async function GET(req: NextRequest) {
@@ -22,6 +28,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
   }
 
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from("comments")
     .select("*")
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest) {
     // Generate a unique secret key for deletion
     const secretKey = crypto.randomUUID();
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("comments")
       .insert([{
@@ -92,6 +100,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID와 삭제 키가 필요합니다." }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     // Verify the secret key matches
     const { data: comment } = await supabaseAdmin
       .from("comments")
