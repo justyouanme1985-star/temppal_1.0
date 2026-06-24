@@ -1,14 +1,15 @@
-import Hero from "@/components/Hero";
+import type { Metadata } from "next";
+import GameHub from "@/components/GameHub";
+import { buildGameHubMetadata } from "@/lib/gameHubSeo";
+import { getServerPlayersByGame } from "@/lib/serverPlayerData";
+
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const players = await getServerPlayersByGame("lol");
+  return buildGameHubMetadata("lol", players);
+}
 
 export default function LoLPage() {
-  return (
-    <main className="pt-0">
-      <div
-        className="max-w-7xl mx-0.5 px-2 pt-2 pb-4"
-        style={{ maxWidth: "1280px" }}
-      >
-        <Hero game="lol" />
-      </div>
-    </main>
-  );
+  return <GameHub game="lol" />;
 }
