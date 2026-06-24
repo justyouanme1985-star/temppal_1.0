@@ -96,6 +96,7 @@ export default function EquipmentPageClient({
     let mounted = true;
     async function load() {
       await loadEquipmentFromSupabase();
+      const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
 
       // Try Supabase first
       let raw = getSupabaseEquipmentSpec(typeKey, equipmentName);
@@ -107,15 +108,24 @@ export default function EquipmentPageClient({
         return;
       }
 
-      // Fall back to static DB
-      const staticSpec = getEquipmentSpec(typeLabel, equipmentName);
+      // Fall back to static DB (alias + normalized lookup)
+      const staticSpec =
+        getEquipmentSpec(typeLabel, equipmentName) ??
+        getEquipmentSpec(typeLabel, linkKey);
       if (staticSpec) {
-        const correctImage = getEquipmentImage(typeKey, equipmentName);
+        const correctImage = getEquipmentImage(typeKey, linkKey);
         if (correctImage) staticSpec.image = correctImage;
         if (mounted) {
           setSpec(staticSpec as any);
           setLoading(false);
         }
+        return;
+      }
+
+      const imageOnly = getEquipmentImage(typeKey, linkKey);
+      if (imageOnly && mounted) {
+        setSpec({ brand: "", model: linkKey, image: imageOnly, _type: typeKey });
+        setLoading(false);
         return;
       }
 
@@ -134,7 +144,9 @@ export default function EquipmentPageClient({
   useEffect(() => {
     let mounted = true;
     async function load() {
-      const result = await getPlayersByEquipmentName(equipmentName);
+      await loadEquipmentFromSupabase();
+      const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
+      const result = await getPlayersByEquipmentName(linkKey, typeKey);
       if (mounted) {
         setPlayers(result);
         setPlayersLoading(false);
@@ -144,7 +156,7 @@ export default function EquipmentPageClient({
     return () => {
       mounted = false;
     };
-  }, [equipmentName]);
+  }, [typeKey, equipmentName]);
 
   // Loading state
   if (loading) {

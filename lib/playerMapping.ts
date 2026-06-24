@@ -11,6 +11,7 @@ export interface Equipment {
   id: string;
   equipmentType: string;
   equipmentName: string;
+  equipmentCatalogId?: number;
   productImage: string;
   productUrl: string;
 }
@@ -65,6 +66,13 @@ export interface RawPlayer {
   mousepad: string | null;
   chair: string | null;
   desk: string | null;
+  mouse_id?: number | null;
+  keyboard_id?: number | null;
+  headset_id?: number | null;
+  monitor_id?: number | null;
+  mousepad_id?: number | null;
+  chair_id?: number | null;
+  desk_id?: number | null;
   previous_mouse: string | null;
   previous_keyboard: string | null;
   previous_mousepad: string | null;
@@ -131,14 +139,19 @@ export function buildPlayerImagePath(id: number | string, ign: string, game: str
 export const GAME_ORDER: Game[] = ["lol", "valorant", "battlegrounds", "starcraft"];
 
 // ==================== Equipment assembly ====================
-const CURRENT_EQUIPMENT_FIELDS: { field: keyof RawPlayer; type: string; slug: string }[] = [
-  { field: "mouse", type: "마우스", slug: "mouse" },
-  { field: "keyboard", type: "키보드", slug: "keyboard" },
-  { field: "headset", type: "헤드셋", slug: "headset" },
-  { field: "monitor", type: "모니터", slug: "monitor" },
-  { field: "mousepad", type: "마우스패드", slug: "mousepad" },
-  { field: "chair", type: "의자", slug: "chair" },
-  { field: "desk", type: "책상", slug: "desk" },
+const CURRENT_EQUIPMENT_FIELDS: {
+  field: keyof RawPlayer;
+  idField: keyof RawPlayer;
+  type: string;
+  slug: string;
+}[] = [
+  { field: "mouse", idField: "mouse_id", type: "마우스", slug: "mouse" },
+  { field: "keyboard", idField: "keyboard_id", type: "키보드", slug: "keyboard" },
+  { field: "headset", idField: "headset_id", type: "헤드셋", slug: "headset" },
+  { field: "monitor", idField: "monitor_id", type: "모니터", slug: "monitor" },
+  { field: "mousepad", idField: "mousepad_id", type: "마우스패드", slug: "mousepad" },
+  { field: "chair", idField: "chair_id", type: "의자", slug: "chair" },
+  { field: "desk", idField: "desk_id", type: "책상", slug: "desk" },
 ];
 
 const PREVIOUS_EQUIPMENT_FIELDS: { field: keyof RawPlayer; type: string; slug: string }[] = [
@@ -150,10 +163,18 @@ const PREVIOUS_EQUIPMENT_FIELDS: { field: keyof RawPlayer; type: string; slug: s
 function buildEquipment(raw: RawPlayer): Equipment[] {
   const ign = raw.ign || "";
   const equipment: Equipment[] = [];
-  for (const { field, type, slug } of CURRENT_EQUIPMENT_FIELDS) {
+  for (const { field, idField, type, slug } of CURRENT_EQUIPMENT_FIELDS) {
     const value = raw[field] as string | null | undefined;
     if (value) {
-      equipment.push({ id: `${ign}-${slug}`, equipmentType: type, equipmentName: value, productImage: "", productUrl: "" });
+      const catalogId = raw[idField] as number | null | undefined;
+      equipment.push({
+        id: `${ign}-${slug}`,
+        equipmentType: type,
+        equipmentName: value,
+        equipmentCatalogId: typeof catalogId === "number" ? catalogId : undefined,
+        productImage: "",
+        productUrl: "",
+      });
     }
   }
   return equipment;

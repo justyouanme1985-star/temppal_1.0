@@ -85,6 +85,38 @@ export const GAMER_EQUIPMENT_FIELDS = [
 
 export type GamerEquipmentField = (typeof GAMER_EQUIPMENT_FIELDS)[number];
 
+/** gamers_info column → equipment_info.category slug */
+export const EQUIPMENT_FIELD_TO_CATEGORY: Record<GamerEquipmentField, string> = {
+  mouse: "mouse",
+  keyboard: "keyboard",
+  headset: "headset",
+  monitor: "monitor",
+  mousepad: "mousepad",
+  chair: "chair",
+  desk: "desk",
+};
+
+/** gamers_info equipment_id columns (nullable int FK → equipment_info.id) */
+export const EQUIPMENT_FIELD_TO_ID_COLUMN: Record<GamerEquipmentField, string> = {
+  mouse: "mouse_id",
+  keyboard: "keyboard_id",
+  headset: "headset_id",
+  monitor: "monitor_id",
+  mousepad: "mousepad_id",
+  chair: "chair_id",
+  desk: "desk_id",
+};
+
+export function categoryToIdColumn(category: string): string | null {
+  const slug = category.trim().toLowerCase();
+  for (const field of GAMER_EQUIPMENT_FIELDS) {
+    if (EQUIPMENT_FIELD_TO_CATEGORY[field] === slug) {
+      return EQUIPMENT_FIELD_TO_ID_COLUMN[field];
+    }
+  }
+  return null;
+}
+
 function aliasKey(input: string): string {
   return input.trim().toLowerCase();
 }
@@ -141,7 +173,27 @@ export function playerUsesEquipment(
   raw: RawPlayer,
   canonicalKey: string,
   catalogKeys: string[],
+  equipmentId?: number | null,
+  category?: string,
 ): boolean {
+  if (equipmentId != null) {
+    const idColumn = category ? categoryToIdColumn(category) : null;
+    if (idColumn) {
+      const playerEquipId = raw[idColumn as keyof RawPlayer];
+      if (typeof playerEquipId === "number" && playerEquipId === equipmentId) {
+        return true;
+      }
+    } else {
+      for (const field of GAMER_EQUIPMENT_FIELDS) {
+        const idCol = EQUIPMENT_FIELD_TO_ID_COLUMN[field] as keyof RawPlayer;
+        const playerEquipId = raw[idCol];
+        if (typeof playerEquipId === "number" && playerEquipId === equipmentId) {
+          return true;
+        }
+      }
+    }
+  }
+
   for (const field of GAMER_EQUIPMENT_FIELDS) {
     const value = raw[field];
     if (typeof value !== "string" || !value.trim()) continue;

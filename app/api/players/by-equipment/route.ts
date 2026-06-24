@@ -5,12 +5,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const name = req.nextUrl.searchParams.get("name");
+  const category = req.nextUrl.searchParams.get("category") ?? undefined;
   if (!name) {
     return NextResponse.json({ error: "name 파라미터가 필요합니다." }, { status: 400 });
   }
 
   try {
-    const players = await getServerPlayersByEquipmentName(name);
+    const players = await getServerPlayersByEquipmentName(name, category);
     return NextResponse.json(players, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",

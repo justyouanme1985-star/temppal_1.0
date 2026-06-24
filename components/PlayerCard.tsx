@@ -7,6 +7,7 @@ import { Player } from "@/lib/playerData";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
+  getSupabaseEquipmentById,
   getEquipmentImage,
   resolveEquipmentLinkKey,
 } from "@/lib/equipmentData";
@@ -288,12 +289,16 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                           eq.key,
                           equipName,
                         );
-                        const linkKey = resolveEquipmentLinkKey(eq.key, equipName);
+                        let linkKey = resolveEquipmentLinkKey(eq.key, equipName);
+                        if (eqData?.equipmentCatalogId) {
+                          const byId = getSupabaseEquipmentById(eqData.equipmentCatalogId);
+                          if (byId?.key) linkKey = byId.key;
+                        }
                         setPopupEquip({
                           name: linkKey,
                           type: eq.label,
                           typeKey: eq.key,
-                          imgSrc: getEquipmentImage(eq.key, equipName) || null,
+                          imgSrc: getEquipmentImage(eq.key, linkKey) || null,
                           spec,
                           brand: spec?.brand || "",
                           model: spec?.model || "",

@@ -1,7 +1,7 @@
 // Auto-generated equipment database
 // Generated: 2026-04-03
 
-import { resolveCanonicalEquipmentKey } from "./equipment/matchEquipment";
+import { normalizeEquipmentLabel, resolveCanonicalEquipmentKey } from "./equipment/matchEquipment";
 
 export interface MouseSpec {
   brand: string;
@@ -1348,13 +1348,37 @@ export const deskDb: Record<string, DeskSpec> = {
 };
 
 // Lookup helpers
-export function getMouseSpec(name: string): MouseSpec | undefined { return mouseDb[name]; }
-export function getKeyboardSpec(name: string): KeyboardSpec | undefined { return keyboardDb[name]; }
-export function getHeadsetSpec(name: string): HeadsetSpec | undefined { return headsetDb[name]; }
-export function getMonitorSpec(name: string): MonitorSpec | undefined { return monitorDb[name]; }
-export function getMousepadSpec(name: string): MousepadSpec | undefined { return mousepadDb[name]; }
-export function getChairSpec(name: string): ChairSpec | undefined { return chairDb[name]; }
-export function getDeskSpec(name: string): DeskSpec | undefined { return deskDb[name]; }
+function resolveStaticSpec(db: Record<string, unknown>, name: string) {
+  if (db[name]) return db[name];
+  const keys = Object.keys(db);
+  const resolved = resolveCanonicalEquipmentKey(name, keys);
+  if (resolved && db[resolved]) return db[resolved];
+  const normalized = normalizeEquipmentLabel(name);
+  const matchKey = keys.find((k) => normalizeEquipmentLabel(k) === normalized);
+  return matchKey ? db[matchKey] : undefined;
+}
+
+export function getMouseSpec(name: string): MouseSpec | undefined {
+  return resolveStaticSpec(mouseDb as Record<string, unknown>, name) as MouseSpec | undefined;
+}
+export function getKeyboardSpec(name: string): KeyboardSpec | undefined {
+  return resolveStaticSpec(keyboardDb as Record<string, unknown>, name) as KeyboardSpec | undefined;
+}
+export function getHeadsetSpec(name: string): HeadsetSpec | undefined {
+  return resolveStaticSpec(headsetDb as Record<string, unknown>, name) as HeadsetSpec | undefined;
+}
+export function getMonitorSpec(name: string): MonitorSpec | undefined {
+  return resolveStaticSpec(monitorDb as Record<string, unknown>, name) as MonitorSpec | undefined;
+}
+export function getMousepadSpec(name: string): MousepadSpec | undefined {
+  return resolveStaticSpec(mousepadDb as Record<string, unknown>, name) as MousepadSpec | undefined;
+}
+export function getChairSpec(name: string): ChairSpec | undefined {
+  return resolveStaticSpec(chairDb as Record<string, unknown>, name) as ChairSpec | undefined;
+}
+export function getDeskSpec(name: string): DeskSpec | undefined {
+  return resolveStaticSpec(deskDb as Record<string, unknown>, name) as DeskSpec | undefined;
+}
 
 export function getEquipmentSpec(type: string, name: string) {
   switch (type) {
@@ -1374,7 +1398,17 @@ import { createBrowserClient } from '@supabase/ssr';
 
 // In-memory cache for equipment specs { category → { name → spec } }
 const supabaseEquipCache: Record<string, Record<string, any>> = {};
+const supabaseEquipByKey: Record<string, any> = {};
+const supabaseEquipById: Record<number, any> = {};
 let cacheLoaded = false;
+
+function normalizeCategorySlug(category: string | null | undefined): string {
+  return (category || "other").trim().toLowerCase();
+}
+
+function getAllCatalogKeys(): string[] {
+  return Object.keys(supabaseEquipByKey);
+}
 
 function createSupabaseClient() {
   return createBrowserClient(
@@ -1398,31 +1432,61 @@ export async function loadEquipmentFromSupabase(): Promise<void> {
   }
 
   for (const row of data || []) {
-    const cat = row.category || 'other';
+    const cat = normalizeCategorySlug(row.category);
     if (!supabaseEquipCache[cat]) supabaseEquipCache[cat] = {};
     supabaseEquipCache[cat][row.key] = row;
+    if (row.key) supabaseEquipByKey[row.key] = row;
+    if (typeof row.id === "number") supabaseEquipById[row.id] = row;
   }
   
   cacheLoaded = true;
 }
 
 export function getSupabaseEquipmentSpec(category: string, key: string): any | undefined {
-  const catCache = supabaseEquipCache[category];
-  if (!catCache) return undefined;
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  const allKeys = getAllCatalogKeys();
 
-  const keys = Object.keys(catCache);
-  const resolvedKey = resolveCanonicalEquipmentKey(key, keys);
-  if (resolvedKey) return catCache[resolvedKey];
+  if (catCache) {
+    const keys = Object.keys(catCache);
+    const resolvedKey = resolveCanonicalEquipmentKey(key, keys);
+    if (resolvedKey) return catCache[resolvedKey];
+  }
 
-  const exactKey = keys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
-  return exactKey ? catCache[exactKey] : undefined;
+  if (allKeys.length > 0) {
+    const resolvedKey = resolveCanonicalEquipmentKey(key, allKeys);
+    if (resolvedKey) return supabaseEquipByKey[resolvedKey];
+  }
+
+  const exactKey = allKeys.find((dbKey) => dbKey.toLowerCase() === key.toLowerCase());
+  return exactKey ? supabaseEquipByKey[exactKey] : undefined;
+}
+
+export function getSupabaseEquipmentById(id: number): any | undefined {
+  return supabaseEquipById[id];
 }
 
 /** Resolve player-side equipment label to canonical catalog key for URLs. */
 export function resolveEquipmentLinkKey(category: string, name: string): string {
-  const catCache = supabaseEquipCache[category];
-  if (!catCache) return name;
-  return resolveCanonicalEquipmentKey(name, Object.keys(catCache)) ?? name;
+  const cat = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[cat];
+  const allKeys = getAllCatalogKeys();
+
+  if (catCache) {
+    const resolved = resolveCanonicalEquipmentKey(name, Object.keys(catCache));
+    if (resolved) return resolved;
+  }
+
+  if (allKeys.length > 0) {
+    return resolveCanonicalEquipmentKey(name, allKeys) ?? name;
+  }
+
+  const staticKeys = getStaticDbKeysForCategory(category);
+  if (staticKeys.length > 0) {
+    return resolveCanonicalEquipmentKey(name, staticKeys) ?? name;
+  }
+
+  return name;
 }
 
 const categoryKrLabel: Record<string, string> = {
@@ -1435,21 +1499,46 @@ const categoryKrLabel: Record<string, string> = {
   desk: "책상",
 };
 
+function getStaticDbKeysForCategory(category: string): string[] {
+  const kr = categoryKrLabel[normalizeCategorySlug(category)];
+  if (!kr) return [];
+  switch (kr) {
+    case "마우스":
+      return Object.keys(mouseDb);
+    case "키보드":
+      return Object.keys(keyboardDb);
+    case "헤드셋":
+      return Object.keys(headsetDb);
+    case "모니터":
+      return Object.keys(monitorDb);
+    case "마우스패드":
+      return Object.keys(mousepadDb);
+    case "의자":
+      return Object.keys(chairDb);
+    case "책상":
+      return Object.keys(deskDb);
+    default:
+      return [];
+  }
+}
+
 /** Look up equipment image from hardcoded mapping, with static DB fallback. */
 export function getEquipmentImage(category: string, name: string): string {
-  const catCache = supabaseEquipCache[category];
-  const catalogKeys = catCache ? Object.keys(catCache) : [];
-  const resolvedKey =
-    catalogKeys.length > 0
-      ? resolveCanonicalEquipmentKey(name, catalogKeys) ?? name
-      : name;
+  const allKeys = getAllCatalogKeys();
+  const catalogKeys = allKeys.length > 0 ? allKeys : undefined;
+
+  let resolvedKey = name;
+  if (catalogKeys) {
+    resolvedKey = resolveCanonicalEquipmentKey(name, catalogKeys) ?? name;
+  }
 
   if (equipmentImages[resolvedKey]) return equipmentImages[resolvedKey];
   if (equipmentImages[name]) return equipmentImages[name];
 
-  const krLabel = categoryKrLabel[category];
+  const krLabel = categoryKrLabel[normalizeCategorySlug(category)] ?? categoryKrLabel[category];
   if (krLabel) {
-    const staticSpec = getEquipmentSpec(krLabel, resolvedKey) ?? getEquipmentSpec(krLabel, name);
+    const staticSpec =
+      getEquipmentSpec(krLabel, resolvedKey) ?? getEquipmentSpec(krLabel, name);
     if (staticSpec?.image) return staticSpec.image;
   }
 

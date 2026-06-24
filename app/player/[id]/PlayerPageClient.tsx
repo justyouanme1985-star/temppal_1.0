@@ -11,6 +11,7 @@ import { coupangLink, openCoupangLink } from "@/lib/coupang";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
+  getSupabaseEquipmentById,
   formatEquipmentSpec,
   getEquipmentSpec,
   getEquipmentImage,
@@ -40,10 +41,12 @@ function formatDateString(s?: string) {
 function EquipmentCard({
   type,
   name,
+  equipmentCatalogId,
   playerDbId,
 }: {
   type: string;
   name: string;
+  equipmentCatalogId?: number;
   playerDbId?: number;
 }) {
   const [spec, setSpec] = useState<any>(null);
@@ -61,16 +64,20 @@ function EquipmentCard({
         return;
       }
       let raw = getSupabaseEquipmentSpec(typeKey, name);
-      const linkKey = resolveEquipmentLinkKey(typeKey, name);
+      let linkKey = resolveEquipmentLinkKey(typeKey, name);
+      if (equipmentCatalogId) {
+        const byId = getSupabaseEquipmentById(equipmentCatalogId);
+        if (byId?.key) linkKey = byId.key;
+      }
       if (!raw) {
         const staticSpec =
           getEquipmentSpec(type, name) ??
           getEquipmentSpec(type, linkKey);
-        const image = getEquipmentImage(typeKey, name);
+        const image = getEquipmentImage(typeKey, linkKey);
         if (staticSpec || image) {
           const specObj = staticSpec
             ? { ...staticSpec, _type: typeKey }
-            : { brand: "", model: name, image: "", _type: typeKey };
+            : { brand: "", model: linkKey, image: "", _type: typeKey };
           if (image) specObj.image = image;
           if (mounted) {
             setSpec(specObj);
@@ -85,7 +92,7 @@ function EquipmentCard({
       }
       if (mounted) {
         setSpec(raw ? formatEquipmentSpec(raw, typeKey) : null);
-        setLinkName(resolveEquipmentLinkKey(typeKey, name));
+        setLinkName(linkKey);
         setLoading(false);
       }
     }
@@ -93,7 +100,7 @@ function EquipmentCard({
     return () => {
       mounted = false;
     };
-  }, [type, name]);
+  }, [type, name, equipmentCatalogId]);
 
   // Track equipment button clicks (debounced per player-equipment combo)
   function handleEquipmentBtnClick() {
@@ -632,6 +639,7 @@ export default function PlayerPageClient({ id }: { id: string }) {
                 key={eq.id}
                 type={eq.equipmentType}
                 name={eq.equipmentName}
+                equipmentCatalogId={eq.equipmentCatalogId}
                 playerDbId={player.dbId}
               />
             ))}

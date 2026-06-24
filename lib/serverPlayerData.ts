@@ -45,14 +45,17 @@ export async function getServerPlayerByIgn(ign: string): Promise<Player | null> 
   return mapRawToPlayer(data as RawPlayer);
 }
 
-/** Find players whose gamers_info equipment exactly matches the canonical key. */
-export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
+/** Find players using equipment by catalog id (preferred) or resolved key text match. */
+export async function getServerPlayersByEquipmentName(
+  equipmentName: string,
+  category?: string,
+): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
   const supabase = createServerSupabase();
 
   const { data: equipmentRows, error: equipError } = await supabase
     .from('equipment_info')
-    .select('key');
+    .select('id, key, category');
 
   if (equipError) {
     console.error('Server: failed to fetch equipment_info', equipError);
@@ -62,6 +65,10 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
   const canonicalKey = resolveCanonicalEquipmentKey(equipmentName, keys);
   if (!canonicalKey) return [];
+
+  const equipRow = (equipmentRows ?? []).find((row) => row.key === canonicalKey);
+  const equipmentId = equipRow?.id ?? null;
+  const equipCategory = (equipRow?.category || category || '').toLowerCase() || undefined;
 
   const { data: rawPlayers, error: playersError } = await supabase
     .from('gamers_info')
@@ -78,7 +85,7 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
   for (const raw of rawPlayers ?? []) {
     const typed = raw as RawPlayer;
     if (seen.has(typed.ign)) continue;
-    if (!playerUsesEquipment(typed, canonicalKey, keys)) continue;
+    if (!playerUsesEquipment(typed, canonicalKey, keys, equipmentId, equipCategory)) continue;
 
     seen.add(typed.ign);
     result.push(mapRawToPlayer(typed));
