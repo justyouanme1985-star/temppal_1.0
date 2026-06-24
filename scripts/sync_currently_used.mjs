@@ -10,6 +10,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import { recalcEquipmentRankings } from './recalcEquipmentRankings.mjs';
+import { labelsMatch } from './equipmentMatchUtils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -36,8 +37,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_P
 const EQUIP_FIELDS = ['mouse', 'keyboard', 'headset', 'monitor', 'mousepad', 'chair', 'desk'];
 
 function exactMatch(playerValue, equipKey) {
-  if (!playerValue || !equipKey) return false;
-  return playerValue.trim().toLowerCase() === equipKey.trim().toLowerCase();
+  return labelsMatch(playerValue, equipKey);
 }
 
 async function main() {

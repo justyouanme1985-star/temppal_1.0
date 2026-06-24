@@ -1,7 +1,7 @@
 /**
- * Exact equipment name resolution — NO fuzzy matching.
- * gamers_info values must equal equipment_info.key (case-insensitive),
- * or appear in EQUIPMENT_ALIASES.
+ * Equipment name resolution — exact match with label normalization.
+ * Normalizes case + whitespace + "x2"/"x 2" glue only.
+ * Does NOT merge different models (e.g. superlight 2 vs superlight 2s).
  */
 
 /** Alternate spellings / Korean labels → canonical equipment_info.key */
@@ -19,6 +19,9 @@ export const EQUIPMENT_ALIASES: Record<string, string> = {
   "로지텍 g x superlight2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g x superlight3 / 로지텍 g pro x superlight2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g x superlight4": "Logitech G PRO X SUPERLIGHT 2",
+  "logitech g pro x2 superlight": "Logitech G PRO X SUPERLIGHT 2",
+  "superlight x2": "Logitech G PRO X SUPERLIGHT 2",
+  "superlight x 2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g102": "Logitech G102",
   "로지텍 g640": "Logitech G640",
   "로지텍 미니옵": "Logitech G Pro",
@@ -86,9 +89,25 @@ function aliasKey(input: string): string {
   return input.trim().toLowerCase();
 }
 
+/**
+ * Normalize for comparison: lowercase, collapsed whitespace,
+ * "x2"/"X2"/"x 2" → "x 2", model suffix letters preserved (2 ≠ 2s).
+ */
+export function normalizeEquipmentLabel(input: string): string {
+  let s = input.trim().toLowerCase();
+  s = s.replace(/\s+/g, " ");
+  s = s.replace(/\bx\s*(\d+)([a-z]*)\b/g, "x $1$2");
+  s = s.replace(/\bsuperlight\s+(?:x\s+)?(\d+)([a-z]*)\b/g, "superlight x $1$2");
+  return s.trim();
+}
+
 function findCatalogKey(input: string, catalogKeys: string[]): string | null {
   const lower = input.trim().toLowerCase();
-  return catalogKeys.find((key) => key.toLowerCase() === lower) ?? null;
+  const direct = catalogKeys.find((key) => key.toLowerCase() === lower);
+  if (direct) return direct;
+
+  const normalized = normalizeEquipmentLabel(input);
+  return catalogKeys.find((key) => normalizeEquipmentLabel(key) === normalized) ?? null;
 }
 
 /**
@@ -111,9 +130,9 @@ export function resolveCanonicalEquipmentKey(
   return findCatalogKey(aliasTarget, catalogKeys);
 }
 
-/** Exact case-insensitive equality against canonical key. */
+/** Normalized label equality (case/whitespace/x-glue only). */
 export function equipmentValueMatchesKey(value: string, canonicalKey: string): boolean {
-  return value.trim().toLowerCase() === canonicalKey.trim().toLowerCase();
+  return normalizeEquipmentLabel(value) === normalizeEquipmentLabel(canonicalKey);
 }
 
 import type { RawPlayer } from "../playerMapping";

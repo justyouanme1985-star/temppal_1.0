@@ -2,6 +2,8 @@
  * Recalculate equipment points + popularity_rank (client-side fallback when RPC fails).
  */
 
+import { labelsMatch } from './equipmentMatchUtils.mjs';
+
 const WEIGHT_A = 3;
 const WEIGHT_B = 1;
 const WEIGHT_C = 100;
@@ -9,7 +11,7 @@ const EQUIP_FIELDS = ["mouse", "keyboard", "headset", "monitor", "mousepad", "ch
 
 function exactMatch(playerValue, equipKey) {
   if (!playerValue || !equipKey) return false;
-  return playerValue.trim().toLowerCase() === equipKey.trim().toLowerCase();
+  return labelsMatch(playerValue, equipKey);
 }
 
 export async function syncCurrentlyUsedExact(supabase) {

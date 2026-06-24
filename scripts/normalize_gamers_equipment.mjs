@@ -12,6 +12,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import { recalcEquipmentRankings } from "./recalcEquipmentRankings.mjs";
+import { findCatalogKey, labelsMatch } from "./equipmentMatchUtils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,9 @@ const EQUIPMENT_ALIASES = {
   "로지텍 g x superlight2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g x superlight3 / 로지텍 g pro x superlight2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g x superlight4": "Logitech G PRO X SUPERLIGHT 2",
+  "logitech g pro x2 superlight": "Logitech G PRO X SUPERLIGHT 2",
+  "superlight x2": "Logitech G PRO X SUPERLIGHT 2",
+  "superlight x 2": "Logitech G PRO X SUPERLIGHT 2",
   "로지텍 g102": "Logitech G102",
   "로지텍 g640": "Logitech G640",
   "로지텍 미니옵": "Logitech G Pro",
@@ -72,11 +76,6 @@ const EQUIPMENT_ALIASES = {
 };
 
 const EQUIP_FIELDS = ["mouse", "keyboard", "headset", "monitor", "mousepad", "chair", "desk"];
-
-function findCatalogKey(input, catalogKeys) {
-  const lower = input.trim().toLowerCase();
-  return catalogKeys.find((key) => key.toLowerCase() === lower) ?? null;
-}
 
 function resolveCanonicalEquipmentKey(input, catalogKeys) {
   const trimmed = input.trim();
