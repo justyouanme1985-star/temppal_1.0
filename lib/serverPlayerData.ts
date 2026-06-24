@@ -31,6 +31,21 @@ export async function getServerAllPlayers(): Promise<Player[]> {
   return dedupeAndRank((data ?? []) as RawPlayer[]);
 }
 
+/** Lightweight single-player fetch for SEO metadata and future API use. */
+export async function getServerPlayerByIgn(ign: string): Promise<Player | null> {
+  if (!ign.trim()) return null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('gamers_info')
+    .select('*')
+    .ilike('ign', ign.trim())
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapRawToPlayer(data as RawPlayer);
+}
+
 /** Find all players who use a specific equipment name (exact, case-insensitive). */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
