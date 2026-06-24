@@ -36,6 +36,7 @@ export default function CommunityPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const { isAdmin } = useAdminSession();
   const pageSize = 20;
 
@@ -64,9 +65,8 @@ export default function CommunityPage() {
   }
 
   async function handleAdminDelete(post: Post) {
-    if (!confirm(`"${post.title}" 게시글과 댓글을 관리자 권한으로 삭제할까요?`)) return;
-
     setDeletingId(post.id);
+    setConfirmDeleteId(null);
     try {
       const res = await fetch("/api/admin/community", {
         method: "DELETE",
@@ -147,22 +147,39 @@ export default function CommunityPage() {
                     </span>
                   </Link>
                   {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => handleAdminDelete(post)}
-                      disabled={deletingId === post.id}
-                      className="hidden md:inline-flex w-16 shrink-0 items-center justify-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300"
-                      title="관리자 삭제"
-                    >
-                      {deletingId === post.id ? (
-                        "..."
-                      ) : (
-                        <>
+                    confirmDeleteId === post.id ? (
+                      <div className="hidden md:flex w-28 shrink-0 items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleAdminDelete(post)}
+                          disabled={deletingId === post.id}
+                          className="text-[10px] text-red-500 hover:text-red-600 disabled:text-zinc-300"
+                        >
+                          {deletingId === post.id ? "..." : "확인"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="text-[10px] text-zinc-400 hover:text-zinc-600"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(post.id)}
+                        disabled={deletingId === post.id}
+                        className="hidden md:inline-flex w-16 shrink-0 items-center justify-center text-red-500 hover:text-red-600 disabled:text-zinc-300"
+                        title="관리자 삭제"
+                      >
+                        {deletingId === post.id ? (
+                          "..."
+                        ) : (
                           <Trash2 className="w-3 h-3" />
-                          삭제
-                        </>
-                      )}
-                    </button>
+                        )}
+                      </button>
+                    )
                   )}
                 </div>
               ))}
