@@ -16,12 +16,5 @@ CREATE INDEX IF NOT EXISTS idx_comments_target ON public.comments(target_type, t
 -- Enable RLS
 ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
 
--- Allow anonymous read
-CREATE POLICY "Anyone can read comments"
-  ON public.comments FOR SELECT
-  USING (true);
-
--- Allow anonymous insert
-CREATE POLICY "Anyone can insert comments"
-  ON public.comments FOR INSERT
-  WITH CHECK (true);
+-- Public reads and inserts are blocked; use server API routes with service role.
+-- Apply hide_comment_secret_key.sql and harden_comments_rls.sql in Supabase.

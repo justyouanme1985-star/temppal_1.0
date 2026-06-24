@@ -176,7 +176,8 @@ export function mapRawToPlayer(raw: RawPlayer): Player {
   const clicks = raw.count_player_cumulative ?? 0;
   const prevRank = raw.previous_admin_power_ranking ?? 0;
   const currRank = raw.admin_power_ranking ?? 0;
-  const rankChangeAmt = prevRank > 0 ? prevRank - currRank : 0;
+  const rankChangeAmt =
+    prevRank > 0 && currRank > 0 ? prevRank - currRank : 0;
 
   return {
     id: (raw.ign || "").toLowerCase(),

@@ -153,6 +153,11 @@ BEGIN
       (COALESCE(count_items_cumulative, 0) * 1)
   WHERE id = p_player_id;
 
+  -- Snapshot current ranks before recalculating so rank-change arrows (↑/↓) stay balanced.
+  UPDATE gamers_info
+  SET previous_admin_power_ranking = COALESCE(admin_power_ranking, 0)
+  WHERE game = (SELECT game FROM gamers_info WHERE id = p_player_id);
+
   -- Recalculate admin_power_ranking for this player's game
   WITH ranked AS (
     SELECT id,
@@ -172,8 +177,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO anon;
-GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION log_click(INTEGER, TEXT, TEXT, INTEGER) TO service_role;
 
 -- 2. Stand-alone function for generic equipment clicks (no player)
@@ -244,8 +247,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO anon;
-GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION log_equipment_only(TEXT) TO service_role;
 
 -- 3. Add reference columns to click_stats if missing
@@ -288,8 +289,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO anon;
-GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO authenticated;
 GRANT EXECUTE ON FUNCTION update_weighted_rankings() TO service_role;
 
 -- Refresh cache

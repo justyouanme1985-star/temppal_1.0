@@ -1,20 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { getClientIp } from "@/lib/security/clientIp";
+import { checkRateLimit, rateLimitResponse } from "@/lib/security/rateLimit";
+import {
+  getSupabaseAdmin,
+  isSupabaseAdminConfigured,
+  resolveServiceRoleKey,
+} from "@/lib/security/supabaseAdmin";
 
-// Lazily created so module evaluation never fails when env vars are absent
-// (e.g. during `next build` page-data collection).
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+// Base columns always present on comments table
+const BASE_COMMENT_COLUMNS =
+  "id, target_type, target_id, parent_id, author, content, created_at, updated_at";
+
+const POST_LIMIT = 30;
+const DELETE_LIMIT = 60;
+const WINDOW_MS = 60 * 60 * 1000;
+
+function configErrorResponse() {
+  const hasUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim());
+  const hasKey = Boolean(resolveServiceRoleKey());
+  console.error(
+    "comments API: Supabase admin not configured",
+    { hasUrl, hasServiceRoleKey: hasKey },
+  );
+  return NextResponse.json(
+    { error: "댓글 서버 설정 오류입니다. 관리자에게 문의해주세요." },
+    { status: 503 },
   );
 }
 
-// Never expose secret_key on read paths — deletion auth stays server-side only.
-const PUBLIC_COMMENT_COLUMNS =
-  "id, target_type, target_id, parent_id, author, content, created_at, updated_at, deleted";
+function getSupabaseOrError() {
+  if (!isSupabaseAdminConfigured()) {
+    return { supabase: null, error: configErrorResponse() };
+  }
+  try {
+    return { supabase: getSupabaseAdmin(), error: null as NextResponse | null };
+  } catch (err) {
+    console.error("comments API: failed to create Supabase admin client", err);
+    return { supabase: null, error: configErrorResponse() };
+  }
+}
 
-// GET /api/comments?type=player|equipment&id=xxx
+/** Read comments; falls back if optional `deleted` column is absent. */
+async function selectComments(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  targetType: string,
+  targetId: string,
+) {
+  const withDeleted = `${BASE_COMMENT_COLUMNS}, deleted`;
+  const primary = await supabase
+    .from("comments")
+    .select(withDeleted)
+    .eq("target_type", targetType)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: true });
+
+  if (
+    !primary.error ||
+    (!primary.error.message.includes("deleted") &&
+      primary.error.code !== "42703")
+  ) {
+    return primary;
+  }
+
+  const fallback = await supabase
+    .from("comments")
+    .select(BASE_COMMENT_COLUMNS)
+    .eq("target_type", targetType)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: true });
+
+  if (fallback.data) {
+    fallback.data = fallback.data.map((row) => ({ ...row, deleted: false }));
+  }
+
+  return fallback;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const targetType = searchParams.get("type");
@@ -24,29 +86,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
   }
 
-  // Service role + explicit columns so publishable-key clients cannot SELECT secret_key via RLS.
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("comments")
-    .select(PUBLIC_COMMENT_COLUMNS)
-    .eq("target_type", targetType)
-    .eq("target_id", targetId)
-    .order("created_at", { ascending: true });
+  const { supabase, error: configError } = getSupabaseOrError();
+  if (configError || !supabase) return configError!;
+
+  const { data, error } = await selectComments(supabase, targetType, targetId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("comments GET error:", error);
+    return NextResponse.json({ error: "댓글을 불러오지 못했습니다." }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(data ?? []);
 }
 
-// POST /api/comments — body: { target_type, target_id, parent_id?, author, content }
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rate = checkRateLimit(`comments-post:${ip}`, POST_LIMIT, WINDOW_MS);
+  if (!rate.ok) {
+    return NextResponse.json(
+      rateLimitResponse("댓글 작성 한도를 초과했습니다.", rate.resetAfterMs),
+      { status: 429 },
+    );
+  }
+
   try {
     const body = await req.json();
-    const { target_type, target_id, parent_id, author, content } = body;
+    const { target_type, target_id, parent_id, author, content, password } = body;
 
-    if (!target_type || !target_id || !author?.trim() || !content?.trim()) {
+    if (!target_type || !target_id || !author?.trim() || !content?.trim() || !password?.trim()) {
       return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 });
     }
     if (!["player", "equipment", "community"].includes(target_type)) {
@@ -55,15 +122,18 @@ export async function POST(req: NextRequest) {
     if (author.trim().length > 20) {
       return NextResponse.json({ error: "이름은 20자 이하로 입력해주세요." }, { status: 400 });
     }
+    if (password.trim().length > 50) {
+      return NextResponse.json({ error: "비밀번호는 50자 이하로 입력해주세요." }, { status: 400 });
+    }
     if (content.trim().length > 1500) {
       return NextResponse.json({ error: "내용은 1500자 이하로 입력해주세요." }, { status: 400 });
     }
 
-    // Generate a unique secret key for deletion
-    const secretKey = crypto.randomUUID();
+    const secretKey = hashPassword(password.trim());
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("comments")
       .insert([{
         target_type,
@@ -73,22 +143,39 @@ export async function POST(req: NextRequest) {
         content: content.trim(),
         secret_key: secretKey,
       }])
-      .select(PUBLIC_COMMENT_COLUMNS)
+      .select(BASE_COMMENT_COLUMNS)
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("comments POST error:", error);
+      if (error.message.includes("comments_target_type_check")) {
+        return NextResponse.json(
+          { error: "댓글 유형 설정 오류입니다. DB 마이그레이션이 필요합니다." },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ error: "댓글 작성에 실패했습니다." }, { status: 500 });
     }
 
-    // Return the secret key once on create so the client can store it in localStorage.
-    return NextResponse.json({ ...data, secret_key: secretKey }, { status: 201 });
+    return NextResponse.json(
+      { ...data, deleted: false },
+      { status: 201 },
+    );
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 }
 
-// DELETE /api/comments — body: { id, secret_key }
 export async function DELETE(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rate = checkRateLimit(`comments-delete:${ip}`, DELETE_LIMIT, WINDOW_MS);
+  if (!rate.ok) {
+    return NextResponse.json(
+      rateLimitResponse("삭제 시도 한도를 초과했습니다.", rate.resetAfterMs),
+      { status: 429 },
+    );
+  }
+
   try {
     const body = await req.json();
     const { id, secret_key } = body;
@@ -97,77 +184,68 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID와 삭제 키가 필요합니다." }, { status: 400 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    // Verify the secret key matches
-    const { data: comment } = await supabaseAdmin
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
+
+    const { data: comment } = await supabase
       .from("comments")
       .select("secret_key, parent_id")
       .eq("id", id)
       .single();
 
-    if (!comment || comment.secret_key !== secret_key) {
+    if (!comment || !verifyPassword(secret_key, comment.secret_key)) {
       return NextResponse.json({ error: "삭제 권한이 없습니다." }, { status: 403 });
     }
 
     const parentId = comment.parent_id;
 
-    // Check if this comment has any replies
-    const { count: replyCount } = await supabaseAdmin
+    const { count: replyCount } = await supabase
       .from("comments")
-      .select("*", { count: 'exact', head: true })
+      .select("*", { count: "exact", head: true })
       .eq("parent_id", id);
 
     if (replyCount && replyCount > 0) {
-      // Soft-delete: mark as deleted but keep for reply hierarchy
-      const { error } = await supabaseAdmin
+      const { error } = await supabase
         .from("comments")
-        .update({ deleted: true, content: '', author: '' })
+        .update({ deleted: true, content: "", author: "" })
         .eq("id", id);
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("comments soft-delete error:", error);
+        return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });
       }
       return NextResponse.json({ ok: true, soft: true });
     }
 
-    // No replies — safe to hard delete
-    const { error } = await supabaseAdmin
-      .from("comments")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("comments").delete().eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("comments delete error:", error);
+      return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });
     }
 
-    // Auto-cleanup: if parent is soft-deleted and has no remaining undeleted children, hard-delete it
     if (parentId) {
-      const { count: siblingCount } = await supabaseAdmin
+      const { count: siblingCount } = await supabase
         .from("comments")
-        .select("*", { count: 'exact', head: true })
+        .select("*", { count: "exact", head: true })
         .eq("parent_id", parentId)
         .eq("deleted", false);
 
       if (siblingCount === 0) {
-        // No undeleted children left — check if parent is soft-deleted
-        const { data: parent } = await supabaseAdmin
+        const { data: parent } = await supabase
           .from("comments")
           .select("deleted")
           .eq("id", parentId)
           .single();
 
-        if (parent && parent.deleted) {
-          // Hard-delete the parent too (it was only kept for its children)
-          await supabaseAdmin
-            .from("comments")
-            .delete()
-            .eq("id", parentId);
+        if (parent?.deleted) {
+          await supabase.from("comments").delete().eq("id", parentId);
         }
       }
     }
 
     return NextResponse.json({ ok: true, soft: false });
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 }

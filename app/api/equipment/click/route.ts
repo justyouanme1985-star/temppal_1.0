@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
 export async function POST(req: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  );
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch {
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 503 });
+  }
 
   try {
     const body = await req.json();
     const { equipment_name } = body;
 
-    if (!equipment_name) {
+    if (!equipment_name || typeof equipment_name !== "string") {
       return NextResponse.json(
         { error: "equipment_name is required" },
         { status: 400 },

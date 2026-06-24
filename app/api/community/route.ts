@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import {
   PUBLIC_COMMUNITY_POST_COLUMNS,
   sanitizeCommunityFileUrls,
 } from '@/lib/communityPosts';
+import { getClientIp } from '@/lib/security/clientIp';
+import { checkRateLimit, rateLimitResponse } from '@/lib/security/rateLimit';
+import { getSupabaseAdmin } from '@/lib/security/supabaseAdmin';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const DELETE_GLOBAL_LIMIT = 20;
+const DELETE_POST_LIMIT = 10;
+const DELETE_GLOBAL_WINDOW = 60 * 60 * 1000;
+const DELETE_POST_WINDOW = 15 * 60 * 1000;
 
-function getSupabaseAdmin() {
-  return createClient(supabaseUrl, supabaseServiceKey);
+function getSupabaseOrError() {
+  try {
+    return { supabase: getSupabaseAdmin(), error: null as NextResponse | null };
+  } catch {
+    return {
+      supabase: null,
+      error: NextResponse.json({ error: '서버 설정 오류입니다.' }, { status: 503 }),
+    };
+  }
 }
 
-function getClientIp(request: NextRequest): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
-}
-
-// GET /api/community?page=0&limit=20
 export async function GET(request: NextRequest) {
   const page = Math.max(0, Number(request.nextUrl.searchParams.get('page')) || 0);
   const limit = Math.min(
@@ -29,7 +33,9 @@ export async function GET(request: NextRequest) {
   const from = page * limit;
   const to = from + limit - 1;
 
-  const supabase = getSupabaseAdmin();
+  const { supabase, error: configError } = getSupabaseOrError();
+  if (configError || !supabase) return configError!;
+
   const { data, error } = await supabase
     .from('community_posts')
     .select(PUBLIC_COMMUNITY_POST_COLUMNS)
@@ -48,7 +54,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { author_nickname, author_password, title, content, file_urls } = body;
 
-    // ── Validation ──
     if (!author_nickname || !author_password || !title) {
       return NextResponse.json({ error: '닉네임, 비밀번호, 제목은 필수입니다.' }, { status: 400 });
     }
@@ -74,9 +79,9 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = getClientIp(request);
-    const supabase = getSupabaseAdmin();
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
 
-    // ── Rate limit: max 10 posts per hour per IP ──
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count: recentCount, error: countError } = await supabase
       .from('community_posts')
@@ -94,7 +99,6 @@ export async function POST(request: NextRequest) {
       }, { status: 429 });
     }
 
-    // ── Duplicate check: same IP + same title → max 2 per 24h ──
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { count: titleCount } = await supabase
       .from('community_posts')
@@ -109,7 +113,6 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
-    // ── Content-based duplicate check: same IP + same content within 24h ──
     if (content) {
       const { data: contentDup } = await supabase
         .from('community_posts')
@@ -126,7 +129,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Insert ── (store password as a salted scrypt hash, never plaintext)
     const { data, error } = await supabase
       .from('community_posts')
       .insert([{
@@ -151,7 +153,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/community — body: { id, password }
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
@@ -161,9 +162,34 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID와 비밀번호가 필요합니다.' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const ip = getClientIp(request);
+    const globalRate = checkRateLimit(
+      `community-delete:${ip}`,
+      DELETE_GLOBAL_LIMIT,
+      DELETE_GLOBAL_WINDOW,
+    );
+    if (!globalRate.ok) {
+      return NextResponse.json(
+        rateLimitResponse('삭제 시도 한도를 초과했습니다.', globalRate.resetAfterMs),
+        { status: 429 },
+      );
+    }
 
-    // Verify password
+    const postRate = checkRateLimit(
+      `community-delete:${ip}:${id}`,
+      DELETE_POST_LIMIT,
+      DELETE_POST_WINDOW,
+    );
+    if (!postRate.ok) {
+      return NextResponse.json(
+        rateLimitResponse('이 게시글에 대한 삭제 시도가 너무 많습니다.', postRate.resetAfterMs),
+        { status: 429 },
+      );
+    }
+
+    const { supabase, error: configError } = getSupabaseOrError();
+    if (configError || !supabase) return configError!;
+
     const { data: post } = await supabase
       .from('community_posts')
       .select('author_password')
@@ -178,10 +204,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '비밀번호가 일치하지 않습니다.' }, { status: 403 });
     }
 
-    const { error } = await supabase
-      .from('community_posts')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('community_posts').delete().eq('id', id);
 
     if (error) {
       return NextResponse.json({ error: '삭제에 실패했습니다.' }, { status: 500 });

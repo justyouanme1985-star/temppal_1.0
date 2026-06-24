@@ -166,7 +166,6 @@ export default function Sidebar() {
                 });
                 if (res.ok) {
                   localStorage.setItem("temppal_admin", "true");
-                  sessionStorage.setItem("temppal_admin_pwd", adminPwd);
                   setAdminAuthed(true);
                   setAdminMsg("관리자 모드 활성화");
                 } else {
@@ -210,7 +209,6 @@ export default function Sidebar() {
                 onClick={() => {
                   if (adminAuthed) {
                     localStorage.removeItem("temppal_admin");
-                    sessionStorage.removeItem("temppal_admin_pwd");
                     setAdminAuthed(false);
                     setAdminMsg("");
                   } else {

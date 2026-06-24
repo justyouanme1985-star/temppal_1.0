@@ -1,5 +1,7 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { recalculateGameRankings } from "@/lib/ranking/recalculateGameRankings";
+import { getSupabaseAdmin } from "@/lib/security/supabaseAdmin";
 
 const MIN_CLICK_INTERVAL_MS = 10_000;
 
@@ -13,7 +15,6 @@ export async function POST(
     return NextResponse.json({ error: "Invalid player ID" }, { status: 400 });
   }
 
-  // Default = player card click
   let clickType = "player";
   let equipmentName: string | null = null;
   try {
@@ -24,13 +25,13 @@ export async function POST(
     // no body = player click
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  );
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch {
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 503 });
+  }
 
-  // Rate-limit check
   const { data: player } = await supabase
     .from("gamers_info")
     .select("last_clicked, count_player_cumulative, count_items_cumulative")
@@ -52,7 +53,6 @@ export async function POST(
     }
   }
 
-  // ONE RPC call: inserts click_log + updates gamers_info (+ equipment_info)
   const existingCum =
     clickType === "player"
       ? (player.count_player_cumulative ?? 0)
@@ -70,5 +70,12 @@ export async function POST(
     return NextResponse.json({ error: "Click failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, ...(data as any) });
+  try {
+    await recalculateGameRankings(supabase, numericId);
+    revalidatePath("/api/players");
+  } catch (recalcError) {
+    console.error("rank recalculation error:", recalcError);
+  }
+
+  return NextResponse.json({ ok: true, ...(data as Record<string, unknown>) });
 }
