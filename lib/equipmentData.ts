@@ -1,6 +1,8 @@
 // Auto-generated equipment database
 // Generated: 2026-04-03
 
+import { findBestEquipmentKey } from "./equipment/matchEquipment";
+
 export interface MouseSpec {
   brand: string;
   model: string;
@@ -497,6 +499,20 @@ export const keyboardDb: Record<string, KeyboardSpec> = {
     switchType: "GX \uc2a4\uc704\uce58", layout: "TKL", connection: "\ubb34\uc120", features: "RGB, LIGHTSPEED",
     officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-keyboards/pro-x-tkl-wireless-keyboard.html",
     coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20G%20Pro%20X%20TKL&channel=user",
+  },
+  "Logitech G PRO X Mechanical Keyboard": {
+    brand: "Logitech", model: "G PRO X Mechanical Keyboard",
+    image: "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+    switchType: "GX \uc2a4\uc704\uce58", layout: "\ud480\uc0ac\uc774\uc988", connection: "\uc720\uc120", features: "RGB, \ud56b\uc2a4\uc651",
+    officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-keyboards/pro-x-mechanical-gaming-keyboard.html",
+    coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20G%20PRO%20X%20Mechanical%20Keyboard&channel=user",
+  },
+  "\ub85c\uc9c0\ud14d G PRO X \uae30\uacc4\uc2dd \ud074\ubcf4\ub4dc": {
+    brand: "Logitech", model: "G PRO X Mechanical Keyboard",
+    image: "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+    switchType: "GX \uc2a4\uc704\uce58", layout: "\ud480\uc0ac\uc774\uc988", connection: "\uc720\uc120", features: "RGB, \ud56b\uc2a4\uc651",
+    officialUrl: "https://www.logitechg.com/ko-kr/products/gaming-keyboards/pro-x-mechanical-gaming-keyboard.html",
+    coupangUrl: "https://www.coupang.com/np/search?component=&q=Logitech%20G%20PRO%20X%20Mechanical%20Keyboard&channel=user",
   },
   "Logitech G512": {
     brand: "Logitech", model: "G512",
@@ -1394,43 +1410,9 @@ export function getSupabaseEquipmentSpec(category: string, key: string): any | u
   const catCache = supabaseEquipCache[category];
   if (!catCache) return undefined;
 
-  // 1. Exact match
-  if (catCache[key]) return catCache[key];
-
-  // 2. Case-insensitive exact match
-  const lowerKey = key.toLowerCase();
-  for (const [dbKey, spec] of Object.entries(catCache)) {
-    if (dbKey.toLowerCase() === lowerKey) return spec;
-  }
-
-  // 3. Substring match
-  const normKey = key.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
-  for (const [dbKey, spec] of Object.entries(catCache)) {
-    const normDbKey = dbKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
-    if (normKey.includes(normDbKey) || normDbKey.includes(normKey)) {
-      return spec;
-    }
-  }
-
-  // 4. Token match (if >= 50% tokens match)
-  const keyTokens = normKey.split(' ').filter(t => t.length > 1);
-  if (keyTokens.length > 0) {
-    let bestScore = 0;
-    let bestSpec = null;
-    for (const [dbKey, spec] of Object.entries(catCache)) {
-      const dbTokens = dbKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim().split(' ').filter(t => t.length > 1);
-      let matchCount = 0;
-      for (const t of keyTokens) {
-        if (dbTokens.includes(t)) matchCount++;
-      }
-      const score = matchCount / Math.max(dbTokens.length, keyTokens.length);
-      if (score > bestScore) {
-        bestScore = score;
-        bestSpec = spec;
-      }
-    }
-    if (bestScore >= 0.5) return bestSpec;
-  }
+  const keys = Object.keys(catCache);
+  const bestKey = findBestEquipmentKey(key, keys);
+  if (bestKey) return catCache[bestKey];
 
   return undefined;
 }
@@ -1570,6 +1552,7 @@ export const equipmentImages: Record<string, string> = {
   "Logitech G PRO X": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X 2": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X Mechanical Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
+  "로지텍 G PRO X 기계식 키보드": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
   "Logitech G PRO X SUPERLIGHT": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
   "Logitech G PRO X SUPERLIGHT 2": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",
   "Logitech G PRO X SUPERLIGHT 2 DEX": "/images/equipments/101004_G_PRO_X_SUPERLIGHT.webp",

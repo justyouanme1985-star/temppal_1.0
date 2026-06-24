@@ -46,6 +46,7 @@ function EquipmentCard({
   playerDbId?: number;
 }) {
   const [spec, setSpec] = useState<any>(null);
+  const [linkName, setLinkName] = useState(name);
   const [loading, setLoading] = useState(true);
   const lastEquipClickRef = useRef<Map<string, number>>(new Map());
 
@@ -58,16 +59,15 @@ function EquipmentCard({
         if (mounted) setLoading(false);
         return;
       }
-      // Try Supabase first, fall back to static DB
       let raw = getSupabaseEquipmentSpec(typeKey, name);
       if (!raw) {
         const staticSpec = getEquipmentSpec(type, name);
         if (staticSpec) {
-          // Override image with correct path from equipmentImages mapping
           const correctImage = equipmentImages[name];
           if (correctImage) staticSpec.image = correctImage;
           if (mounted) {
             setSpec(staticSpec as any);
+            setLinkName(name);
             setLoading(false);
           }
         }
@@ -75,6 +75,7 @@ function EquipmentCard({
       }
       if (mounted) {
         setSpec(raw ? formatEquipmentSpec(raw, typeKey) : null);
+        setLinkName(raw?.key || name);
         setLoading(false);
       }
     }
@@ -88,7 +89,7 @@ function EquipmentCard({
   function handleEquipmentBtnClick() {
     if (!playerDbId) return;
     const now = Date.now();
-    const key = `eqpage-${playerDbId}-${name}`;
+    const key = `eqpage-${playerDbId}-${linkName}`;
     const last = lastEquipClickRef.current.get(key) || 0;
     if (now - last < 10_000) return;
     lastEquipClickRef.current.set(key, now);
@@ -96,7 +97,7 @@ function EquipmentCard({
     fetch(`/api/players/${playerDbId}/click`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "equipment", equipment_name: name }),
+      body: JSON.stringify({ type: "equipment", equipment_name: linkName }),
       keepalive: true,
     }).catch(() => {});
   }
@@ -104,7 +105,7 @@ function EquipmentCard({
   function handleCardClick() {
     if (!playerDbId) return;
     const now = Date.now();
-    const key = `eqcard-${playerDbId}-${name}`;
+    const key = `eqcard-${playerDbId}-${linkName}`;
     const last = lastEquipClickRef.current.get(key) || 0;
     if (now - last < 10_000) return;
     lastEquipClickRef.current.set(key, now);
@@ -112,14 +113,14 @@ function EquipmentCard({
     fetch(`/api/players/${playerDbId}/click`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "equipment", equipment_name: name }),
+      body: JSON.stringify({ type: "equipment", equipment_name: linkName }),
       keepalive: true,
     }).catch(() => {});
   }
 
   return (
     <Link
-      href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(name)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
+      href={`/equipment/${equipmentTypeMap[type] || type}/${encodeURIComponent(linkName)}${playerDbId ? `?playerId=${playerDbId}` : ""}`}
       onClick={handleCardClick}
       className="block bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col no-underline"
     >

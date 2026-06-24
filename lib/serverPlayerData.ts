@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  findBestEquipmentKey,
+  playerUsesEquipment,
+} from './equipment/matchEquipment';
+import {
   dedupeAndRank,
   mapRawToPlayer,
   rankPlayers,
@@ -46,41 +50,44 @@ export async function getServerPlayerByIgn(ign: string): Promise<Player | null> 
   return mapRawToPlayer(data as RawPlayer);
 }
 
-/** Find all players who use a specific equipment name (exact, case-insensitive). */
+/** Find all players who use equipment matching the given name (fuzzy, cross-language). */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
   const supabase = createServerSupabase();
 
-  // 1. Resolve the canonical key from equipment_info.
-  const { data: equip } = await supabase
+  const { data: equipmentRows, error: equipError } = await supabase
     .from('equipment_info')
-    .select('key')
-    .ilike('key', equipmentName)
-    .maybeSingle();
+    .select('key');
 
-  if (!equip) return [];
-  const exactKey = equip.key;
-
-  // 2. Match against current equipment columns only.
-  const { data: rawPlayers } = await supabase
-    .from('gamers_info')
-    .select('*')
-    .or(
-      `mouse.ilike.${exactKey},keyboard.ilike.${exactKey},headset.ilike.${exactKey},monitor.ilike.${exactKey},mousepad.ilike.${exactKey},chair.ilike.${exactKey},desk.ilike.${exactKey}`,
-    );
-
-  if (!rawPlayers || rawPlayers.length === 0) return [];
-
-  // 3. Dedupe by ign and map to Player.
-  const seen = new Set<string>();
-  const result: Player[] = [];
-  for (const raw of rawPlayers as RawPlayer[]) {
-    if (seen.has(raw.ign)) continue;
-    seen.add(raw.ign);
-    result.push(mapRawToPlayer(raw));
+  if (equipError) {
+    console.error('Server: failed to fetch equipment_info', equipError);
+    throw equipError;
   }
 
-  // 4. Sort: power ranking → power score → game order.
+  const keys = (equipmentRows ?? []).map((row) => row.key).filter(Boolean);
+  const canonicalKey = findBestEquipmentKey(equipmentName, keys) ?? equipmentName;
+
+  const { data: rawPlayers, error: playersError } = await supabase
+    .from('gamers_info')
+    .select('*');
+
+  if (playersError) {
+    console.error('Server: failed to fetch gamers_info for equipment lookup', playersError);
+    throw playersError;
+  }
+
+  const seen = new Set<string>();
+  const result: Player[] = [];
+
+  for (const raw of rawPlayers ?? []) {
+    const typed = raw as RawPlayer;
+    if (seen.has(typed.ign)) continue;
+    if (!playerUsesEquipment(typed, equipmentName, canonicalKey)) continue;
+
+    seen.add(typed.ign);
+    result.push(mapRawToPlayer(typed));
+  }
+
   const gameOrder: Record<string, number> = { lol: 0, starcraft: 1, valorant: 2, battlegrounds: 3 };
   result.sort((a, b) => {
     const aRank = a.powerRanking ?? 999;
