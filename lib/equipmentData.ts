@@ -1522,6 +1522,22 @@ export function getSupabaseEquipmentById(id: number): any | undefined {
   return supabaseEquipById[id];
 }
 
+export function catalogRowMatchesCategory(
+  row: { category?: string | null } | undefined,
+  category: string,
+): boolean {
+  if (!row) return false;
+  return normalizeCategorySlug(row.category) === normalizeCategorySlug(category);
+}
+
+export function getSupabaseEquipmentByIdForCategory(
+  id: number,
+  category: string,
+): any | undefined {
+  const row = getSupabaseEquipmentById(id);
+  return catalogRowMatchesCategory(row, category) ? row : undefined;
+}
+
 function pickAffiliateUrl(raw: { affiliate_url?: string | null } | undefined): string | null {
   const url = raw?.affiliate_url?.trim();
   return url ? url : null;
@@ -1534,7 +1550,7 @@ export function resolveEquipmentAffiliateUrl(
   catalogId?: number | null,
 ): string | null {
   if (catalogId != null) {
-    const byIdRow = getSupabaseEquipmentById(catalogId);
+    const byIdRow = getSupabaseEquipmentByIdForCategory(catalogId, category);
     const byId = pickAffiliateUrl(byIdRow);
     if (byId) return byId;
     if (byIdRow?.key) {
@@ -1551,25 +1567,39 @@ export function resolveEquipmentAffiliateUrl(
 
 /** Resolve player-side equipment label to canonical catalog key for URLs. */
 export function resolveEquipmentLinkKey(category: string, name: string): string {
-  const cat = normalizeCategorySlug(category);
-  const catCache = supabaseEquipCache[cat];
-  const allKeys = getAllCatalogKeys();
+  const typeKey = normalizeCategorySlug(category);
+  const catCache = supabaseEquipCache[typeKey];
+  const staticKeys = getStaticCatalogKeysForCategory(typeKey);
+  const mergedKeys = [
+    ...new Set([
+      ...(catCache ? Object.keys(catCache) : []),
+      ...staticKeys,
+      ...getAllCatalogKeys(),
+    ]),
+  ];
 
-  if (catCache) {
-    const resolved = resolveCanonicalEquipmentKey(name, Object.keys(catCache));
+  if (mergedKeys.length > 0) {
+    const resolved = resolveCanonicalEquipmentKey(name, mergedKeys);
     if (resolved) return resolved;
   }
 
-  if (allKeys.length > 0) {
-    return resolveCanonicalEquipmentKey(name, allKeys) ?? name;
-  }
+  const fuzzy = findFuzzyCatalogRow(typeKey, name);
+  if (fuzzy) return fuzzy.key;
 
-  const staticKeys = getStaticCatalogKeysForCategory(category);
-  if (staticKeys.length > 0) {
-    return resolveCanonicalEquipmentKey(name, staticKeys) ?? name;
-  }
+  return name.trim();
+}
 
-  return name;
+/** Link key for a player equipment row — validates catalog id category before use. */
+export function resolvePlayerEquipmentLinkKey(
+  category: string,
+  name: string,
+  catalogId?: number | null,
+): string {
+  if (catalogId != null) {
+    const byId = getSupabaseEquipmentByIdForCategory(catalogId, category);
+    if (byId?.key) return byId.key;
+  }
+  return resolveEquipmentLinkKey(category, name);
 }
 
 const categoryKrLabel: Record<string, string> = {

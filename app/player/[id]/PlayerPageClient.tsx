@@ -11,12 +11,12 @@ import CoupangAffiliateLink from "@/components/CoupangAffiliateLink";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
-  getSupabaseEquipmentById,
+  getSupabaseEquipmentByIdForCategory,
   formatEquipmentSpec,
   getEquipmentSpec,
   getImageByCatalogId,
   resolveEquipmentImageUrl,
-  resolveEquipmentLinkKey,
+  resolvePlayerEquipmentLinkKey,
   resolveEquipmentAffiliateUrl,
 } from "@/lib/equipmentData";
 
@@ -65,12 +65,15 @@ function EquipmentCard({
         if (mounted) setLoading(false);
         return;
       }
-      let linkKey = resolveEquipmentLinkKey(typeKey, name);
+      let linkKey = resolvePlayerEquipmentLinkKey(typeKey, name, equipmentCatalogId);
       let raw =
         getSupabaseEquipmentSpec(typeKey, name) ??
         getSupabaseEquipmentSpec(typeKey, linkKey);
       if (equipmentCatalogId) {
-        const byId = getSupabaseEquipmentById(equipmentCatalogId);
+        const byId = getSupabaseEquipmentByIdForCategory(
+          equipmentCatalogId,
+          typeKey,
+        );
         if (byId?.key) linkKey = byId.key;
         if (byId && !raw) raw = byId;
       }
@@ -78,8 +81,11 @@ function EquipmentCard({
         raw?.affiliate_url ??
         resolveEquipmentAffiliateUrl(typeKey, name, equipmentCatalogId) ??
         resolveEquipmentAffiliateUrl(typeKey, linkKey, equipmentCatalogId);
+      const catalogRow = equipmentCatalogId
+        ? getSupabaseEquipmentByIdForCategory(equipmentCatalogId, typeKey)
+        : undefined;
       const resolvedImage =
-        getImageByCatalogId(equipmentCatalogId) ||
+        getImageByCatalogId(catalogRow ? equipmentCatalogId : null) ||
         getImageByCatalogId(typeof raw?.id === "number" ? raw.id : null) ||
         resolveEquipmentImageUrl(typeKey, name, linkKey, raw?.key);
       if (!raw) {

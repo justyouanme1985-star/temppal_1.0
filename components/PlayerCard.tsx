@@ -7,9 +7,9 @@ import { Player } from "@/lib/playerData";
 import {
   loadEquipmentFromSupabase,
   getSupabaseEquipmentSpec,
-  getSupabaseEquipmentById,
+  getSupabaseEquipmentByIdForCategory,
   resolveEquipmentImageUrl,
-  resolveEquipmentLinkKey,
+  resolvePlayerEquipmentLinkKey,
   resolveEquipmentAffiliateUrl,
   getImageByCatalogId,
 } from "@/lib/equipmentData";
@@ -288,25 +288,37 @@ export default function PlayerCard({ player }: PlayerCardProps) {
                         const equipName = eqData?.equipmentName || eq.label;
                         await loadEquipmentFromSupabase();
                         let spec = getSupabaseEquipmentSpec(eq.key, equipName);
-                        let linkKey = resolveEquipmentLinkKey(eq.key, equipName);
                         const catalogId = eqData?.equipmentCatalogId;
+                        let linkKey = resolvePlayerEquipmentLinkKey(
+                          eq.key,
+                          equipName,
+                          catalogId,
+                        );
                         if (catalogId) {
-                          const byId = getSupabaseEquipmentById(catalogId);
-                          if (byId?.key) linkKey = byId.key;
+                          const byId = getSupabaseEquipmentByIdForCategory(
+                            catalogId,
+                            eq.key,
+                          );
                           if (byId && !spec) spec = byId;
                         }
                         const affiliateUrl =
                           spec?.affiliate_url ??
                           resolveEquipmentAffiliateUrl(eq.key, equipName, catalogId) ??
                           resolveEquipmentAffiliateUrl(eq.key, linkKey, catalogId);
+                        const catalogRow = catalogId
+                          ? getSupabaseEquipmentByIdForCategory(catalogId, eq.key)
+                          : undefined;
                         setPopupEquip({
                           name: linkKey,
                           type: eq.label,
                           typeKey: eq.key,
                           imgSrc:
                             getImageByCatalogId(
-                              catalogId ??
-                                (typeof spec?.id === "number" ? spec.id : null),
+                              catalogRow
+                                ? catalogId
+                                : typeof spec?.id === "number"
+                                  ? spec.id
+                                  : null,
                             ) ||
                             resolveEquipmentImageUrl(eq.key, linkKey, equipName) ||
                             null,

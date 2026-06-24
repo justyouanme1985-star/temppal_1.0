@@ -172,9 +172,13 @@ export default function EquipmentPageClient({
   useEffect(() => {
     let mounted = true;
     async function load() {
+      setPlayersLoading(true);
       await loadEquipmentFromSupabase();
       const linkKey = resolveEquipmentLinkKey(typeKey, equipmentName);
-      const result = await getPlayersByEquipmentName(linkKey, typeKey);
+      let result = await getPlayersByEquipmentName(linkKey, typeKey);
+      if (result.length === 0 && equipmentName.trim() !== linkKey) {
+        result = await getPlayersByEquipmentName(equipmentName, typeKey);
+      }
       if (mounted) {
         setPlayers(result);
         setPlayersLoading(false);
@@ -186,8 +190,8 @@ export default function EquipmentPageClient({
     };
   }, [typeKey, equipmentName]);
 
-  // Loading state
-  if (loading) {
+  // Loading state — wait for both spec and player lookups
+  if (loading || playersLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-zinc-500 dark:text-zinc-400">
         로딩 중...
