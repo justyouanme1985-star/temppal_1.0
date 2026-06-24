@@ -1,123 +1,25 @@
-"use client";
+import type { Metadata } from "next";
+import { buildSearchMetadata } from "@/lib/communitySeo";
+import { getServerSearchResults } from "@/lib/serverSearch";
+import SearchPageClient from "@/components/SearchPageClient";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useEffect, useMemo } from "react";
-import { useSearchPlayers } from "@/lib/hooks/usePlayers";
-import { scoreQuery, isChosungOnly } from "@/lib/koreanSearch";
-import { Search } from "lucide-react";
-import PlayerCard from "@/components/PlayerCard";
+export const revalidate = 60;
 
-function SearchResults() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const query = searchParams.get("q") || "";
-  const q = query.trim();
+type PageProps = {
+  searchParams: Promise<{ q?: string }>;
+};
 
-  const { data: results, isLoading, isError } = useSearchPlayers(q);
-
-  const scoredResults = useMemo(() => {
-    if (!q || !results) return [];
-    return results
-      .map((p) => ({
-        player: p,
-        score: scoreQuery(
-          q,
-          p.playerName,
-          p.playerRealName,
-          p.team,
-          p.collectedWords,
-        ),
-      }))
-      .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score);
-  }, [q, results]);
-
-  useEffect(() => {
-    if (scoredResults.length === 0) return;
-
-    // 초성 검색은 자동 이동 안 함
-    if (isChosungOnly(q)) return;
-
-    const top = scoredResults[0];
-
-    // score 1500 이상일 때만 자동 이동 (exact match 수준)
-    if (top.score >= 1500) {
-      const player = top.player;
-      if (player.dbId) {
-        fetch(`/api/players/${player.dbId}/click`, {
-          method: "POST",
-          keepalive: true,
-        }).catch(console.error);
-      }
-      router.push(`/player/${player.id}`);
-    }
-  }, [scoredResults, q, router]);
-
-  // 자동 이동 중일 때 빈 화면 방지
-  const isAutoRedirecting =
-    scoredResults.length > 0 &&
-    !isChosungOnly(q) &&
-    scoredResults[0].score >= 1500;
-
-  if (isAutoRedirecting) return null;
-
-  return (
-    <main className="pt-0">
-      <div
-        className="max-w-7xl mx-auto px-4 pt-6 pb-8"
-        style={{ maxWidth: "1920px" }}
-      >
-        <h1 className="text-lg font-bold text-zinc-900 dark:text-white mb-1">
-          검색 결과
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-          &ldquo;{query}&rdquo; 에 대한 검색 결과 {scoredResults.length}건
-        </p>
-
-        {isError ? (
-          <div className="flex items-center justify-center py-20 text-sm text-red-500">
-            검색 중 오류가 발생했습니다. 다시 시도해주세요.
-          </div>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center py-20 text-sm text-zinc-500 dark:text-zinc-400">
-            로딩 중...
-          </div>
-        ) : scoredResults.length > 0 ? (
-          <div className="grid gap-1">
-            {scoredResults
-              .sort((a, b) => {
-                // 검색 점수 높은 순 (정확 일치 = 최우선)
-                if (a.score !== b.score) return b.score - a.score;
-                // 동점이면 파워랭킹 순
-                return (
-                  (a.player.powerRanking ?? 999) -
-                  (b.player.powerRanking ?? 999)
-                );
-              })
-              .map(({ player }) => (
-                <PlayerCard key={player.id} player={player} />
-              ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Search className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              &ldquo;{query}&rdquo; 에 대한 검색 결과가 없습니다.
-            </p>
-            <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-1">
-              선수 이름, 팀 이름으로 검색해보세요.
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
-  );
+export async function generateMetadata({
+  searchParams,
+}: PageProps): Promise<Metadata> {
+  const { q } = await searchParams;
+  return buildSearchMetadata(q ?? "");
 }
 
-export default function SearchPage() {
-  return (
-    <Suspense>
-      <SearchResults />
-    </Suspense>
-  );
+export default async function SearchPage({ searchParams }: PageProps) {
+  const { q } = await searchParams;
+  const query = q ?? "";
+  const results = query.trim() ? await getServerSearchResults(query) : [];
+
+  return <SearchPageClient query={query} initialResults={results} />;
 }

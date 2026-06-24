@@ -109,3 +109,66 @@ export async function getServerEquipmentPageData(
 ): Promise<EquipmentPageData | null> {
   return buildEquipmentPageData(typeKey, encodedName);
 }
+
+export type EquipmentRankItem = {
+  id: number;
+  key: string;
+  brand: string;
+  model: string;
+  category: string;
+  officialUrl?: string;
+  affiliate_url?: string | null;
+  weight?: string;
+  connection?: string;
+  size?: string;
+  maxSpeed?: string;
+  dpi?: string;
+  count_items_recent: number;
+  count_items_cumulative: number;
+  apoint: number;
+  bpoint: number;
+  cpoint: number;
+  total_points: number;
+  popularity_rank: number;
+  currently_used: number;
+};
+
+/** All equipment rows for the /equipment ranking page. */
+export async function getServerEquipmentRanking(): Promise<EquipmentRankItem[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("equipment_info")
+    .select(
+      "id, key, brand, model, category, weight, connection, size, maXSpeed, dpi, count_items_recent, count_items_cumulative, officialUrl, affiliate_url, currently_used, apoint, bpoint, cpoint, total_points, popularity_rank",
+    )
+    .order("category", { ascending: true })
+    .order("popularity_rank", { ascending: true });
+
+  if (error) {
+    console.error("Server: failed to fetch equipment ranking", error);
+    return [];
+  }
+
+  return (data ?? []).map((d: Record<string, unknown>) => ({
+    id: d.id as number,
+    key: d.key as string,
+    brand: d.brand as string,
+    model: d.model as string,
+    category: d.category as string,
+    officialUrl: d.officialUrl as string | undefined,
+    affiliate_url: d.affiliate_url as string | null | undefined,
+    weight: d.weight as string | undefined,
+    connection: d.connection as string | undefined,
+    size: d.size as string | undefined,
+    maxSpeed: d.maXSpeed as string | undefined,
+    dpi: d.dpi as string | undefined,
+    count_items_recent: (d.count_items_recent as number) ?? 0,
+    count_items_cumulative: (d.count_items_cumulative as number) ?? 0,
+    apoint: (d.apoint as number) ?? 0,
+    bpoint: (d.bpoint as number) ?? 0,
+    cpoint: (d.cpoint as number) ?? 0,
+    total_points: (d.total_points as number) ?? 0,
+    popularity_rank: (d.popularity_rank as number) ?? 0,
+    currently_used: (d.currently_used as number) ?? 0,
+  }));
+}
