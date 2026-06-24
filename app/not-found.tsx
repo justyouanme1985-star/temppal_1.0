@@ -1,5 +1,11 @@
-import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { NOINDEX_ROBOTS } from "@/lib/indexing";
+
+export const metadata: Metadata = {
+  title: "페이지를 찾을 수 없습니다",
+  robots: NOINDEX_ROBOTS,
+};
 
 export default function NotFound() {
   return (
