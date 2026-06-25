@@ -14,6 +14,8 @@ import {
   formatEquipmentSpec,
   getEquipmentSpec,
   findStaticImage,
+  normaliseEquipmentDisplayName,
+  stripColourSuffix,
 } from "@/lib/equipmentData";
 
 const equipmentTypeMap: Record<string, string> = {
@@ -88,7 +90,7 @@ function EquipmentCard({
     };
   }, [type, name]);
 
-  const equipUrl = `/equipment/${typeKey}/${encodeURIComponent(resolvedKey || name)}${playerDbId ? `?playerId=${playerDbId}` : ""}`;
+  const equipUrl = `/equipment/${typeKey}/${encodeURIComponent(resolvedKey || normaliseEquipmentDisplayName(name))}${playerDbId ? `?playerId=${playerDbId}` : ""}`;
 
   // Use static image immediately; Supabase-loaded spec may override with richer data.
   const displayImg = spec?.image || staticImg;
@@ -153,7 +155,7 @@ function EquipmentCard({
 
       <div className="p-4 flex flex-col flex-1">
         <h3 className="font-semibold text-zinc-900 dark:text-white text-sm mb-2 line-clamp-2">
-          {spec ? `${spec.brand} ${spec.model}` : name}
+          {spec ? `${spec.brand} ${spec.model}` : stripColourSuffix(name)}
         </h3>
 
         {spec && spec._type === "mouse" && (

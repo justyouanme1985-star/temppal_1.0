@@ -57,47 +57,91 @@ export async function getServerPlayersByGame(
   return players.filter((p) => p.game === game);
 }
 
-/** Find all players who use a specific equipment name, using fuzzy matching. */
+/**
+ * Korean → English brand mapping for equipment normalisation.
+ */
+const KOREAN_BRAND_MAP: Record<string, string> = {
+  로지텍: "Logitech",
+  레이저: "Razer",
+  커세어: "Corsair",
+  조위: "Zowie",
+  조위기어: "Zowie",
+  카마: "Commatech",
+  바이퍼: "Razer",
+  엑스트리파이: "Xtrfy",
+  자오핀: "Zaopin",
+  커머텍: "Commatech",
+  제닉스: "Xenics",
+};
+
+/** Colour / decorative suffix words to strip before matching. */
+const COLOR_WORDS = [
+  "black", "white", "magenta", "red", "blue", "green",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
+];
+
+/**
+ * Normalise an equipment name string for comparison:
+ *   1. Map Korean brand names → English
+ *   2. Lowercase
+ *   3. Remove colour suffix words
+ *   4. Collapse whitespace
+ */
+function normaliseEquipmentName(raw: string): string {
+  let s = raw;
+  for (const [ko, en] of Object.entries(KOREAN_BRAND_MAP)) {
+    s = s.replace(new RegExp(ko, "gi"), en);
+  }
+  s = s.toLowerCase();
+  for (const color of COLOR_WORDS) {
+    s = s.replace(new RegExp("\\b" + color + "\\b", "gi"), "");
+  }
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+/** Find all players who use a specific equipment name, using exact model matching. */
 export async function getServerPlayersByEquipmentName(equipmentName: string): Promise<Player[]> {
   if (!equipmentName.trim()) return [];
 
-  // 1. Find ALL matching canonical keys from equipment_info via fuzzy match.
   const supabase = createServerSupabase();
+
+  // 1. Resolve the canonical key from equipment_info via exact normalised matching
   const { data: equipRows } = await supabase
-    .from('equipment_info')
-    .select('key, category');
+    .from("equipment_info")
+    .select("key");
 
   if (!equipRows || equipRows.length === 0) return [];
 
-  const matchedKeys = fuzzyMatchKeys(equipRows as { key: string }[], equipmentName);
-  if (matchedKeys.length === 0) return [];
+  const target = normaliseEquipmentName(equipmentName);
+  const canonicalKey = (equipRows as { key: string }[]).find(
+    (r) => normaliseEquipmentName(r.key) === target,
+  )?.key;
 
-  // 2. Search players using ilike with %% SQL wildcards (PostgREST syntax).
-  //    "%%Key%%" matches color/size variants like "Key Black".
-  const cols = ['mouse', 'keyboard', 'headset', 'monitor', 'mousepad', 'chair', 'desk'];
-  const orParts = matchedKeys.slice(0, 5).flatMap(k =>
-    cols.map(c => `${c}.ilike.%%${k.replace(/%/g, '')}%%`)
-  );
+  if (!canonicalKey) return [];
 
+  // 2. Fetch all players and filter by exact normalised match
   const { data: rawPlayers } = await supabase
-    .from('gamers_info')
-    .select('*')
-    .or(orParts.join(','));
+    .from("gamers_info")
+    .select("*");
 
   if (!rawPlayers || rawPlayers.length === 0) return [];
 
-  // 3. Filter out false positives: "Zowie G-SR" must not match "Zowie G-SR SE".
+  const eqCols = ["mouse", "keyboard", "headset", "monitor", "mousepad", "chair", "desk"];
   const resultSet = new Map<string, Player>();
+
   for (const raw of rawPlayers as RawPlayer[]) {
     const normIgn = (raw.ign || "").toLowerCase().trim();
     if (!normIgn || resultSet.has(normIgn)) continue;
-    const player = mapRawToPlayer(raw);
 
-    // Verify: player MUST actually match via playerHasEquipment
-    const matches = player.equipment.some(eq =>
-      matchedKeys.some(mk => playerHasEquipment(eq.equipmentName, mk)),
-    );
-    if (matches) {
+    const found = eqCols.some((col) => {
+      const val = raw[col as keyof RawPlayer] as string | undefined;
+      if (!val) return false;
+      return normaliseEquipmentName(val) === target;
+    });
+
+    if (found) {
+      const player = mapRawToPlayer(raw);
       resultSet.set(normIgn, player);
     }
   }
@@ -121,7 +165,7 @@ export async function getServerPlayersByEquipmentName(equipmentName: string): Pr
  * Fuzzy-match an equipment search string against a set of equipment_info keys.
  * Returns all canonical keys that match (exact, substring, or token >= 50%).
  */
-function fuzzyMatchKeys(rows: { key: string }[], search: string): string[] {
+export function fuzzyMatchKeys(rows: { key: string }[], search: string): string[] {
   const keys = rows.map(r => r.key);
   const lower = search.toLowerCase().trim();
   const norm = search.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
@@ -158,7 +202,7 @@ function fuzzyMatchKeys(rows: { key: string }[], search: string): string[] {
  * Does NOT match if canonical key is longer than player data
  * ("Custom Keyboard" ⊅ "Custom Keyboard Frog F12").
  */
-function playerHasEquipment(eqName: string, canonicalKey: string): boolean {
+export function playerHasEquipment(eqName: string, canonicalKey: string): boolean {
   const a = eqName.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
   const b = canonicalKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
 

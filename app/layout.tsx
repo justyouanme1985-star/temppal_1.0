@@ -20,9 +20,11 @@ export const metadata: Metadata = {
     default: "템빨 - 프로들의 템",
     template: "%s | 템빨",
   },
-  description: "프로게이머가 실제로 사용하는 마우스, 키보드, 모니터 등 게이밍 장비 정보",
+  description:
+    "LoL, 스타크래프트, 발로란트, PUBG 프로 게이머 장비 추천. Faker, Chovy, Canyon, Keria, Ruler, 이영호, 김명운 등 현역 프로들이 실제로 쓰는 게이밍 마우스, 키보드, 헤드셋, 마우스패드 랭킹과 상세 스펙을 한곳에서 확인하세요.",
   icons: {
     icon: [{ url: "/favicon.ico", sizes: "any" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
   openGraph: {
     siteName: "템빨",
@@ -30,13 +32,13 @@ export const metadata: Metadata = {
     type: "website",
     title: "템빨 - 프로들의 템",
     description: "프로게이머가 실제로 사용하는 게이밍 장비",
-    images: [{ url: "/images/banner.svg", alt: "템빨" }],
+    images: [{ url: "/images/banner.png", alt: "템빨" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "템빨 - 프로들의 템",
     description: "프로게이머가 실제로 사용하는 게이밍 장비",
-    images: ["/images/banner.svg"],
+    images: ["/images/banner.png"],
   },
 };
 

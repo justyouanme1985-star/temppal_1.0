@@ -200,6 +200,121 @@ export type EquipmentRankItem = {
   currently_used: number;
 };
 
+/**
+ * Korean → English brand mapping for equipment normalisation.
+ * Players may write brands in Korean; we convert to English for matching.
+ */
+const KOREAN_BRAND_MAP: Record<string, string> = {
+  로지텍: "Logitech",
+  레이저: "Razer",
+  커세어: "Corsair",
+  조위: "Zowie",
+  조위기어: "Zowie",
+  카마: "Commatech",
+  바이퍼: "Razer",
+  엑스트리파이: "Xtrfy",
+  자오핀: "Zaopin",
+  커머텍: "Commatech",
+  제닉스: "Xenics",
+};
+
+/** Colour / decorative suffix words to strip before matching. */
+const COLOR_WORDS = [
+  "black", "white", "magenta", "red", "blue", "green",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
+  "faker edition",
+];
+
+/**
+ * Normalise an equipment name string for comparison:
+ *   1. Map Korean brand names → English
+ *   2. Lowercase
+ *   3. Remove colour suffix words
+ *   4. Collapse whitespace
+ */
+function normaliseEquipmentName(raw: string): string {
+  let s = raw;
+  for (const [ko, en] of Object.entries(KOREAN_BRAND_MAP)) {
+    // Case‑insensitive Korean replacement (Korean doesn't have case, but be safe)
+    s = s.replace(new RegExp(ko, "gi"), en);
+  }
+  s = s.toLowerCase();
+  for (const color of COLOR_WORDS) {
+    s = s.replace(new RegExp("\\b" + color + "\\b", "gi"), "");
+  }
+  // Collapse multiple spaces
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+/**
+ * Compute actual player counts for mouse equipment using EXACT model matching.
+ *
+ * Rules:
+ *   - Brand: case-insensitive, Korean→English mapping
+ *   - Model: must match the canonical equipment_info key exactly
+ *     (after stripping colour words like "Black", "Magenta", etc.)
+ *
+ * Each player's equipment value is normalised then compared against each
+ * canonical mouse key.  A player counts toward the key whose normalised
+ * form matches the player's normalised value exactly.
+ *
+ * Returns a Map<canonicalKey, playerCount>.
+ */
+async function computeMouseActualPlayerCounts(): Promise<Map<string, number>> {
+  const supabase = createServerSupabase();
+
+  // Fetch all mouse equipment keys
+  const { data: equipRows } = await supabase
+    .from("equipment_info")
+    .select("key")
+    .eq("category", "mouse");
+
+  if (!equipRows || equipRows.length === 0) return new Map();
+
+  const mouseKeys = (equipRows as { key: string }[]).map((r) => r.key);
+
+  // Pre‑normalise all canonical keys
+  const normalisedKeys = new Map<string, string>();
+  for (const k of mouseKeys) {
+    normalisedKeys.set(k, normaliseEquipmentName(k));
+  }
+
+  // Fetch all players’ equipment columns
+  const { data: rawPlayers } = await supabase
+    .from("gamers_info")
+    .select("ign, mouse, keyboard, headset, monitor, mousepad, chair, desk");
+
+  if (!rawPlayers || rawPlayers.length === 0) return new Map();
+
+  const allPlayerRows = (rawPlayers ?? []) as Record<string, unknown>[];
+  const eqCols = ["mouse", "keyboard", "headset", "monitor", "mousepad", "chair", "desk"];
+
+  // For each mouse key, count players whose normalised equipment value matches
+  const counts = new Map<string, number>();
+  for (const mk of mouseKeys) {
+    const target = normalisedKeys.get(mk)!;
+    const matchedIgns = new Set<string>();
+
+    for (const player of allPlayerRows) {
+      const ign = ((player.ign as string) || "").toLowerCase().trim();
+      if (!ign) continue;
+
+      const found = eqCols.some((col) => {
+        const val = player[col] as string | undefined;
+        if (!val) return false;
+        return normaliseEquipmentName(val) === target;
+      });
+
+      if (found) matchedIgns.add(ign);
+    }
+
+    counts.set(mk, matchedIgns.size);
+  }
+
+  return counts;
+}
+
 /** All equipment rows for the /equipment ranking page. */
 export async function getServerEquipmentRanking(): Promise<EquipmentRankItem[]> {
   const supabase = createServerSupabase();
@@ -216,26 +331,44 @@ export async function getServerEquipmentRanking(): Promise<EquipmentRankItem[]> 
     return [];
   }
 
-  return (data ?? []).map((d: Record<string, unknown>) => ({
-    id: d.id as number,
-    key: d.key as string,
-    brand: d.brand as string,
-    model: d.model as string,
-    category: d.category as string,
-    officialUrl: d.officialUrl as string | undefined,
-    affiliate_url: d.affiliate_url as string | null | undefined,
-    weight: d.weight as string | undefined,
-    connection: d.connection as string | undefined,
-    size: d.size as string | undefined,
-    maxSpeed: d.maXSpeed as string | undefined,
-    dpi: d.dpi as string | undefined,
-    count_items_recent: (d.count_items_recent as number) ?? 0,
-    count_items_cumulative: (d.count_items_cumulative as number) ?? 0,
-    apoint: (d.apoint as number) ?? 0,
-    bpoint: (d.bpoint as number) ?? 0,
-    cpoint: (d.cpoint as number) ?? 0,
-    total_points: (d.total_points as number) ?? 0,
-    popularity_rank: (d.popularity_rank as number) ?? 0,
-    currently_used: (d.currently_used as number) ?? 0,
-  }));
+  // Compute actual player counts for mouse items using the SAME logic as the equipment page
+  let mouseCounts: Map<string, number> = new Map();
+  try {
+    mouseCounts = await computeMouseActualPlayerCounts();
+  } catch (e) {
+    console.error("Server: failed to compute mouse player counts, falling back to DB values", e);
+  }
+
+  return (data ?? []).map((d: Record<string, unknown>) => {
+    const key = d.key as string;
+    const category = d.category as string;
+    // Override currently_used for mouse items with the actual computed count
+    const actualCount =
+      category === "mouse" && mouseCounts.has(key)
+        ? mouseCounts.get(key)!
+        : ((d.currently_used as number) ?? 0);
+
+    return {
+      id: d.id as number,
+      key,
+      brand: d.brand as string,
+      model: d.model as string,
+      category,
+      officialUrl: d.officialUrl as string | undefined,
+      affiliate_url: d.affiliate_url as string | null | undefined,
+      weight: d.weight as string | undefined,
+      connection: d.connection as string | undefined,
+      size: d.size as string | undefined,
+      maxSpeed: d.maXSpeed as string | undefined,
+      dpi: d.dpi as string | undefined,
+      count_items_recent: (d.count_items_recent as number) ?? 0,
+      count_items_cumulative: (d.count_items_cumulative as number) ?? 0,
+      apoint: (d.apoint as number) ?? 0,
+      bpoint: (d.bpoint as number) ?? 0,
+      cpoint: (d.cpoint as number) ?? 0,
+      total_points: (d.total_points as number) ?? 0,
+      popularity_rank: (d.popularity_rank as number) ?? 0,
+      currently_used: actualCount,
+    };
+  });
 }

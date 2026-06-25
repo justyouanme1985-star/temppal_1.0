@@ -1403,15 +1403,20 @@ export function getSupabaseEquipmentSpec(category: string, key: string): any | u
     if (dbKey.toLowerCase() === lowerKey) return spec;
   }
 
-  // 3. Substring: search contains canonical key (safe direction).
-  //    "Logitech G903 LIGHTSPEED Gaming Mouse" → "Logitech G903" ✅
+  // 3. Best substring match — pick the LONGEST matching canonical key
+  //    (most specific). "Logitech G Pro X Superlight 2 Black" should match
+  //    "Logitech G PRO X SUPERLIGHT 2", not the shorter "Logitech G PRO".
   const normKey = key.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
+  let bestSubLen = 0;
+  let bestSubSpec: any = undefined;
   for (const [dbKey, spec] of Object.entries(catCache)) {
     const normDbKey = dbKey.replace(/[-_\s]+/g, ' ').toLowerCase().trim();
-    if (normKey.includes(normDbKey)) {
-      return spec;
+    if (normKey.includes(normDbKey) && normDbKey.length > bestSubLen) {
+      bestSubLen = normDbKey.length;
+      bestSubSpec = spec;
     }
   }
+  if (bestSubSpec) return bestSubSpec;
 
   // 4. Token match (if >= 50% tokens match).
   const keyTokens = normKey.split(' ').filter(t => t.length > 1);
@@ -1743,10 +1748,45 @@ export const equipmentImages: Record<string, string> = {
   "ABKO Hacker K995P V3": "/images/equipments/102067_Abko Hacker K995P V3.webp",
 };
 
+/** Korean → English brand mapping for equipment display normalisation. */
+const KOREAN_BRAND_MAP: Record<string, string> = {
+  로지텍: "Logitech",
+  레이저: "Razer",
+  커세어: "Corsair",
+  조위: "Zowie",
+  조위기어: "Zowie",
+  카마: "Commatech",
+  바이퍼: "Razer",
+  엑스트리파이: "Xtrfy",
+  자오핀: "Zaopin",
+  커머텍: "Commatech",
+  제닉스: "Xenics",
+};
 
+/** Colour suffixes stripped when normalising equipment names. */
+const COLOR_WORDS = [
+  "black", "white", "magenta", "red", "blue", "green",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
+];
 
+/** Normalise an equipment name for matching: Korean→English, lowercase, strip colours, collapse spaces. */
+export function normaliseEquipmentDisplayName(raw: string): string {
+  let s = raw;
+  for (const [ko, en] of Object.entries(KOREAN_BRAND_MAP)) {
+    s = s.replace(new RegExp(ko, "gi"), en);
+  }
+  s = s.toLowerCase();
+  for (const color of COLOR_WORDS) {
+    s = s.replace(new RegExp("\\b" + color + "\\b", "gi"), "");
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
 
-
-
-
-;
+/** Strip colour suffixes only — preserves original case. "Logitech G Pro X Superlight 2 Black" → "Logitech G Pro X Superlight 2" */
+export function stripColourSuffix(raw: string): string {
+  let s = raw;
+  for (const color of COLOR_WORDS) {
+    s = s.replace(new RegExp("\\b" + color + "\\b", "gi"), "");
+  }
+  return s.replace(/\s+/g, " ").trim();
+};
