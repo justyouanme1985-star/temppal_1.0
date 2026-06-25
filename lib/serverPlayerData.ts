@@ -78,6 +78,7 @@ const KOREAN_BRAND_MAP: Record<string, string> = {
 const COLOR_WORDS = [
   "black", "white", "magenta", "red", "blue", "green",
   "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
+  "faker edition",
 ];
 
 /**
