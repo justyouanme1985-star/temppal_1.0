@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ChevronDown, ExternalLink, ShoppingCart } from "lucide-react";
 import { coupangLink, openCoupangLink } from "@/lib/coupang";
-import { equipmentImages } from "@/lib/equipmentData";
+import { findStaticImage } from "@/lib/equipmentData";
 import type { EquipmentRankItem } from "@/lib/serverEquipmentData";
 import { useScrollRestore } from "@/lib/hooks/useScrollRestore";
 
@@ -199,7 +199,7 @@ export default function EquipmentRankingClient({
 }
 
 function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
-  const imgSrc = equipmentImages[item.key] || null;
+  const imgSrc = findStaticImage(item.category, item.key) || null;
   const equipmentUrl = `/equipment/${item.category}/${encodeURIComponent(item.key)}`;
 
   return (
