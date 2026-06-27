@@ -50,6 +50,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${noto.variable}`} suppressHydrationWarning>
+      <head>
+      <meta name="naver-site-verification" content="b897b690310c8080611ac2a9060f654280dfe905" />
+      </head>
       <body className="h-screen flex flex-col bg-white dark:bg-black text-black dark:text-white antialiased overflow-hidden">
         <Providers>
           <Header />
