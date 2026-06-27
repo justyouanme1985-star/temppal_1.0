@@ -15,8 +15,6 @@ const noto = Noto_Sans_KR({
   variable: "--font-noto-sans-kr",
 });
 
-<meta name="naver-site-verification" content="b897b690310c8080611ac2a9060f654280dfe905" />
-
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: {
