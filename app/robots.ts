@@ -5,11 +5,18 @@ export default function robots(): MetadataRoute.Robots {
   const base = getSiteUrl();
 
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: ["/api/", "/search", "/community/write", "/mail/"],
-    },
+    rules: [
+      {
+        userAgent: "Yeti",
+        allow: "/",
+        disallow: ["/api/", "/search", "/community/write", "/mail/"],
+      },
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/api/", "/search", "/community/write", "/mail/"],
+      },
+    ],
     sitemap: `${base}/sitemap.xml`,
   };
 }
