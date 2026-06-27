@@ -57,9 +57,11 @@ export default function RootLayout({
             <Sidebar />
             <div
               id="main-scroll"
-              className="flex-1 min-w-0 flex flex-col overflow-y-auto"
+              className="flex-1 min-w-0 flex flex-col overflow-x-hidden overflow-y-auto"
             >
-              <div className="flex-1 flex justify-center">{children}</div>
+              <div className="flex-1 flex justify-center w-full">
+                {children}
+              </div>
               <Footer />
             </div>
           </div>

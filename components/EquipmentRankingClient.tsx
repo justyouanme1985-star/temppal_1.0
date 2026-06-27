@@ -71,19 +71,17 @@ export default function EquipmentRankingClient({
   focusCategory?: string;
   hideCategoryNav?: boolean;
 }) {
-  const [equipments] = useState<EquipmentRankItem[]>(initialEquipments);
-  const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
-  useScrollRestore("scroll_equip_ranking");
-
-  // Restore visibleRows on mount
-  useEffect(() => {
+  const [visibleRows, setVisibleRows] = useState<Record<string, number>>(() => {
     try {
       const saved = sessionStorage.getItem("equip_visibleRows");
-      if (saved) setVisibleRows(JSON.parse(saved));
+      return saved ? JSON.parse(saved) : {};
     } catch {
-      // ignore
+      return {};
     }
-  }, []);
+  });
+
+  const [equipments] = useState<EquipmentRankItem[]>(initialEquipments);
+  useScrollRestore("scroll_equip_ranking");
 
   // Persist visibleRows whenever it changes
   const isFirstRender = useRef(true);
@@ -95,8 +93,8 @@ export default function EquipmentRankingClient({
     sessionStorage.setItem("equip_visibleRows", JSON.stringify(visibleRows));
   }, [visibleRows]);
 
-  // Items per row (matches grid cols: 5 on xl)
-  const ITEMS_PER_ROW = 5;
+  // Items per row (matches grid cols: 6 on xl)
+  const ITEMS_PER_ROW = 6;
 
   const activeCategories = focusCategory
     ? categoryOrder.filter((cat) => cat === focusCategory)
@@ -111,14 +109,14 @@ export default function EquipmentRankingClient({
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+    <div className="px-2 sm:px-4 xl:px-8 2xl:px-16 py-4 sm:py-6 w-full max-w-full min-w-0 overflow-x-hidden">
       <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 text-center">
         {title}
       </h1>
 
       {/* Category Navigation Icons — smooth scroll */}
       {!hideCategoryNav && (
-        <div className="flex items-stretch justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex items-stretch justify-start md:justify-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
           {categoryOrder.map((cat) => {
             const items = groupedByCategory[cat] || [];
             if (items.length === 0) return null;
@@ -172,7 +170,7 @@ export default function EquipmentRankingClient({
               </span>
             </h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5 sm:gap-2 w-full">
               {visibleItems.map((item) => (
                 <EquipmentRankCard key={item.id} item={item} />
               ))}
@@ -210,7 +208,7 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
       className="flex flex-col bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
     >
       {/* Top: Rank badge + Brand + Model */}
-      <div className="px-2.5 pt-2 pb-1 space-y-0.5">
+      <div className="px-2 pt-2 pb-1 space-y-0.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${
@@ -235,7 +233,10 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
       </div>
 
       {/* Image */}
-      <div className="relative bg-zinc-50 dark:bg-zinc-900 p-2 flex items-center justify-center aspect-square shrink-0">
+      <div
+        className="relative bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center"
+        style={{ aspectRatio: "1/1", minHeight: 0 }}
+      >
         {imgSrc ? (
           <Image
             src={imgSrc}
@@ -243,7 +244,7 @@ function EquipmentRankCard({ item }: { item: EquipmentRankItem }) {
             width={160}
             height={160}
             className="max-h-full max-w-full object-contain"
-            style={{ width: "auto", height: "auto" }}
+            style={{ width: "100%", height: "100%" }}
           />
         ) : (
           <div className="text-zinc-400 dark:text-zinc-600 text-sm">

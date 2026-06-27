@@ -211,7 +211,7 @@ export default function EquipmentPageClient({
 
         <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden mb-8">
           <div className="flex flex-col md:flex-row">
-            <div className="w-full md:w-1/2 bg-zinc-50 dark:bg-zinc-900 p-3 sm:p-8 flex items-center justify-center min-h-[160px] sm:min-h-[300px]">
+            <div className="w-full md:w-1/2 bg-zinc-50 dark:bg-zinc-900 p-3 sm:p-8 flex items-center justify-center min-h-[160px] sm:min-h-[300px] max-h-72">
               {spec?.image ? (
                 <Image
                   src={spec.image}

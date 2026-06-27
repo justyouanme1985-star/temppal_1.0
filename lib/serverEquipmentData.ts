@@ -221,8 +221,8 @@ const KOREAN_BRAND_MAP: Record<string, string> = {
 /** Colour / decorative suffix words to strip before matching. */
 const COLOR_WORDS = [
   "black", "white", "magenta", "red", "blue", "green",
-  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
-  "faker edition",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey", "lilac",
+  "faker edition", "edition",
 ];
 
 /**
@@ -248,35 +248,31 @@ function normaliseEquipmentName(raw: string): string {
 }
 
 /**
- * Compute actual player counts for mouse equipment using EXACT model matching.
- *
- * Rules:
- *   - Brand: case-insensitive, Korean→English mapping
- *   - Model: must match the canonical equipment_info key exactly
- *     (after stripping colour words like "Black", "Magenta", etc.)
+ * Compute actual player counts for a given equipment category using EXACT
+ * model matching (case-insensitive, Korean→English, colour words stripped).
  *
  * Each player's equipment value is normalised then compared against each
- * canonical mouse key.  A player counts toward the key whose normalised
- * form matches the player's normalised value exactly.
+ * canonical key.  A player counts toward the key whose normalised form
+ * matches the player's normalised value exactly.
  *
  * Returns a Map<canonicalKey, playerCount>.
  */
-async function computeMouseActualPlayerCounts(): Promise<Map<string, number>> {
+async function computeActualPlayerCounts(category: string): Promise<Map<string, number>> {
   const supabase = createServerSupabase();
 
-  // Fetch all mouse equipment keys
+  // Fetch all equipment keys for this category
   const { data: equipRows } = await supabase
     .from("equipment_info")
     .select("key")
-    .eq("category", "mouse");
+    .eq("category", category);
 
   if (!equipRows || equipRows.length === 0) return new Map();
 
-  const mouseKeys = (equipRows as { key: string }[]).map((r) => r.key);
+  const keys = (equipRows as { key: string }[]).map((r) => r.key);
 
   // Pre‑normalise all canonical keys
   const normalisedKeys = new Map<string, string>();
-  for (const k of mouseKeys) {
+  for (const k of keys) {
     normalisedKeys.set(k, normaliseEquipmentName(k));
   }
 
@@ -290,10 +286,9 @@ async function computeMouseActualPlayerCounts(): Promise<Map<string, number>> {
   const allPlayerRows = (rawPlayers ?? []) as Record<string, unknown>[];
   const eqCols = ["mouse", "keyboard", "headset", "monitor", "mousepad", "chair", "desk"];
 
-  // For each mouse key, count players whose normalised equipment value matches
   const counts = new Map<string, number>();
-  for (const mk of mouseKeys) {
-    const target = normalisedKeys.get(mk)!;
+  for (const k of keys) {
+    const target = normalisedKeys.get(k)!;
     const matchedIgns = new Set<string>();
 
     for (const player of allPlayerRows) {
@@ -309,10 +304,20 @@ async function computeMouseActualPlayerCounts(): Promise<Map<string, number>> {
       if (found) matchedIgns.add(ign);
     }
 
-    counts.set(mk, matchedIgns.size);
+    counts.set(k, matchedIgns.size);
   }
 
   return counts;
+}
+
+/** Convenience wrapper for mouse counts. */
+async function computeMouseActualPlayerCounts(): Promise<Map<string, number>> {
+  return computeActualPlayerCounts("mouse");
+}
+
+/** Convenience wrapper for keyboard counts. */
+async function computeKeyboardActualPlayerCounts(): Promise<Map<string, number>> {
+  return computeActualPlayerCounts("keyboard");
 }
 
 /** All equipment rows for the /equipment ranking page. */
@@ -331,22 +336,31 @@ export async function getServerEquipmentRanking(): Promise<EquipmentRankItem[]> 
     return [];
   }
 
-  // Compute actual player counts for mouse items using the SAME logic as the equipment page
+  // Compute actual player counts using the SAME logic as the equipment page
   let mouseCounts: Map<string, number> = new Map();
+  let keyboardCounts: Map<string, number> = new Map();
   try {
-    mouseCounts = await computeMouseActualPlayerCounts();
+    [mouseCounts, keyboardCounts] = await Promise.all([
+      computeMouseActualPlayerCounts(),
+      computeKeyboardActualPlayerCounts(),
+    ]);
   } catch (e) {
-    console.error("Server: failed to compute mouse player counts, falling back to DB values", e);
+    console.error("Server: failed to compute actual player counts, falling back to DB values", e);
   }
 
-  return (data ?? []).map((d: Record<string, unknown>) => {
+  // Build item list with overridden counts
+  const items = (data ?? []).map((d: Record<string, unknown>) => {
     const key = d.key as string;
     const category = d.category as string;
-    // Override currently_used for mouse items with the actual computed count
-    const actualCount =
-      category === "mouse" && mouseCounts.has(key)
-        ? mouseCounts.get(key)!
-        : ((d.currently_used as number) ?? 0);
+
+    let actualCount: number;
+    if (category === "mouse" && mouseCounts.has(key)) {
+      actualCount = mouseCounts.get(key)!;
+    } else if (category === "keyboard" && keyboardCounts.has(key)) {
+      actualCount = keyboardCounts.get(key)!;
+    } else {
+      actualCount = (d.currently_used as number) ?? 0;
+    }
 
     return {
       id: d.id as number,
@@ -369,6 +383,38 @@ export async function getServerEquipmentRanking(): Promise<EquipmentRankItem[]> 
       total_points: (d.total_points as number) ?? 0,
       popularity_rank: (d.popularity_rank as number) ?? 0,
       currently_used: actualCount,
-    };
+    } as EquipmentRankItem;
   });
+
+  // Filter: only show equipment with at least 1 player,
+  // and exclude generic "Custom [Type]" entries (e.g. "Custom Keyboard")
+  // while keeping specific models like "Custom Keyboard Frog F12...".
+  const filtered = items.filter((item) => {
+    if (item.currently_used <= 0) return false;
+    if (/^Custom\s+\w+$/i.test(item.key)) return false;
+    return true;
+  });
+
+  // Recalculate popularity_rank within each category based on actual counts
+  const grouped = new Map<string, EquipmentRankItem[]>();
+  for (const item of filtered) {
+    const cat = item.category;
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(item);
+  }
+
+  const result: EquipmentRankItem[] = [];
+  for (const [cat, catItems] of grouped) {
+    // Sort by currently_used descending, then by total_points as tiebreaker
+    catItems.sort((a, b) => {
+      if (b.currently_used !== a.currently_used) return b.currently_used - a.currently_used;
+      return b.total_points - a.total_points;
+    });
+    catItems.forEach((item, i) => {
+      item.popularity_rank = i + 1;
+    });
+    result.push(...catItems);
+  }
+
+  return result;
 }

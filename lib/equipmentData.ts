@@ -1568,7 +1568,7 @@ export const equipmentImages: Record<string, string> = {
   "Corsair Vanguard PRO 96": "/images/equipments/102017_K70_PRO.webp",
   "Corsair Vanguard Pro 96": "/images/equipments/102042_Corsair_Vanguard_Pro_96.webp",
   "Corsair VIRTUOSO": "/images/equipments/103011_VIRTUOSO.webp",
-  "Corsair VIRTUOSO Max": "/images/equipments/103012_Syn_PRO_Air.webp",
+  "Corsair VIRTUOSO Max": "/images/equipments/103011_VIRTUOSO.webp",
   "Corsair VOID RGB Elite": "/images/equipments/103011_VIRTUOSO.webp",
   "COX Endeavor White": "/images/equipments/102040_COX_Endeavor_White.webp",
   "Custom Keyboard": "",
@@ -1586,6 +1586,7 @@ export const equipmentImages: Record<string, string> = {
   "G915 TKL X Linear": "/images/equipments/102049_G915_TKL_X_Linear.webp",
   "HP X27i": "/images/equipments/104006_X27i_Gaming_Monitor.webp",
   "HyperX Alloy FPS Pro": "/images/equipments/102050_hyperx_alloy_fps_pro.webp",
+  "HyperX Cloud Flight": "/images/equipments/103013_Cloud_Flight_S.webp",
   "HyperX Cloud Flight S": "/images/equipments/103013_Cloud_Flight_S.webp",
   "HyperX Cloud II": "/images/equipments/103014_Cloud_II.webp",
   "HyperX FURY S PRO Speed": "/images/equipments/105036_hyperx_fury_s_pro_speed.webp",
@@ -1608,6 +1609,7 @@ export const equipmentImages: Record<string, string> = {
   "Logitech G PRO": "/images/equipments/101001_G_PRO_Gaming_Mouse.webp",
   "Logitech G PRO 2 LIGHTSPEED": "/images/equipments/101003_G_PRO2_LIGHTSPEED.webp",
   "Logitech G PRO Wireless": "/images/equipments/101001_G_PRO_Gaming_Mouse.webp",
+  "Logitech G PRO X Wireless": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X 2": "/images/equipments/103001_G_PRO_X.webp",
   "Logitech G PRO X Mechanical Keyboard": "/images/equipments/102001_G_PRO_X_Mechanical_Keyboard.webp",
@@ -1766,8 +1768,8 @@ const KOREAN_BRAND_MAP: Record<string, string> = {
 /** Colour suffixes stripped when normalising equipment names. */
 const COLOR_WORDS = [
   "black", "white", "magenta", "red", "blue", "green",
-  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
-  "faker edition",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey", "lilac",
+  "faker edition", "edition",
 ];
 
 /** Normalise an equipment name for matching: Korean→English, lowercase, strip colours, collapse spaces. */

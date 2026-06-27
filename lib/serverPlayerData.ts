@@ -77,8 +77,8 @@ const KOREAN_BRAND_MAP: Record<string, string> = {
 /** Colour / decorative suffix words to strip before matching. */
 const COLOR_WORDS = [
   "black", "white", "magenta", "red", "blue", "green",
-  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey",
-  "faker edition",
+  "pink", "cyan", "yellow", "purple", "orange", "gray", "grey", "lilac",
+  "faker edition", "edition",
 ];
 
 /**

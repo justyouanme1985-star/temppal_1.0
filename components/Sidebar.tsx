@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const games = [
   {
@@ -49,6 +50,7 @@ export default function Sidebar() {
   const [adminPwd, setAdminPwd] = useState("");
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
+  const router = useRouter();
 
   return (
     <aside
@@ -124,7 +126,7 @@ export default function Sidebar() {
                       i--;
                     }
                   }
-                  window.location.href = "/";
+                  router.push("/");
                 }}
                 className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium cursor-pointer"
               >
@@ -133,7 +135,7 @@ export default function Sidebar() {
               <button
                 onClick={() => {
                   sessionStorage.removeItem("equip_visibleRows");
-                  window.location.href = "/equipment";
+                  router.push("/equipment");
                 }}
                 className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors dark:text-zinc-300 text-sm font-medium cursor-pointer"
               >
