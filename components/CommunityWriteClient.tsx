@@ -220,7 +220,7 @@ export default function CommunityWriteClient() {
                     className="flex items-center justify-between px-2 py-1.5 bg-zinc-50 dark:bg-zinc-900 rounded text-xs text-zinc-600 dark:text-zinc-400"
                   >
                     <span className="flex items-center gap-1 truncate">
-                      <Image className="w-3 h-3 shrink-0" />
+                      <Image className="w-3 h-3 shrink-0" alt="" />
                       {file.name}
                     </span>
                     <button
