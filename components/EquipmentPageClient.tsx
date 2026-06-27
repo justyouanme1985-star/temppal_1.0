@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, ShoppingCart } from "lucide-react";
@@ -190,6 +190,12 @@ export default function EquipmentPageClient({
 }) {
   const { typeLabel, equipmentName, spec, players } = data;
   useScrollRestore("scroll_equippage");
+
+  // Always scroll to top on mount
+  useEffect(() => {
+    const container = document.getElementById("main-scroll");
+    if (container) container.scrollTo(0, 0);
+  }, []);
 
   const displayTitle =
     spec?.brand && spec?.model ? `${spec.brand} ${spec.model}` : equipmentName;

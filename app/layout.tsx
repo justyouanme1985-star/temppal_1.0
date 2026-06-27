@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import Footer from "@/components/Footer";
 import Sidebar from "@/components/Sidebar";
+import ScrollToTop from "@/components/ScrollToTop";
 import { getSiteUrl } from "@/lib/site";
 
 const noto = Noto_Sans_KR({
@@ -63,6 +64,7 @@ export default function RootLayout({
                 {children}
               </div>
               <Footer />
+              <ScrollToTop />
             </div>
           </div>
         </Providers>

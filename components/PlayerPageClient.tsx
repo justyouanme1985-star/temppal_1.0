@@ -353,6 +353,12 @@ function EquipmentCard({
 
 export default function PlayerPageClient({ player }: { player: Player }) {
   useScrollRestore("scroll_playerpage");
+
+  // Always scroll to top on mount
+  useEffect(() => {
+    const container = document.getElementById("main-scroll");
+    if (container) container.scrollTo(0, 0);
+  }, []);
   return (
     <div className="flex-1 overflow-y-auto pb-1.5">
       <div className="max-w-4xl mx-auto px-4 py-6">
