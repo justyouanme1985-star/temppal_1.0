@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { Player } from "@/lib/playerMapping";
 import type { Game } from "@/lib/playerMapping";
 import { getGameHubConfig } from "@/lib/gameHubConfig";
@@ -163,10 +163,26 @@ function PlayerCardItem({ player, game }: { player: Player; game: string }) {
   const folder = GAME_FOLDER[game] || "lol";
   const imgSrc =
     player.playerImage || `/images/players/${folder}/no-picture.webp`;
+  const lastClickRef = useRef<Map<string, number>>(new Map());
+
+  function handleCardClick() {
+    if (!player.dbId) return;
+    const now = Date.now();
+    const key = String(player.dbId);
+    const last = lastClickRef.current.get(key) || 0;
+    if (now - last < 10_000) return;
+    lastClickRef.current.set(key, now);
+
+    fetch(`/api/players/${player.dbId}/click`, {
+      method: "POST",
+      keepalive: true,
+    }).catch(() => {});
+  }
 
   return (
     <Link
       href={`/player/${player.id}`}
+      onClick={handleCardClick}
       className="flex flex-col bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-blue-500 dark:hover:border-blue-400 transition-colors no-underline"
     >
       <div className="px-2.5 pt-2 pb-1 flex items-center gap-1.5">
