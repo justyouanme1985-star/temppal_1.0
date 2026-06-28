@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import Sidebar from "@/components/Sidebar";
 import ScrollToTop from "@/components/ScrollToTop";
 import { getSiteUrl } from "@/lib/site";
+import { Analytics } from "@vercel/analytics/next";
 
 const noto = Noto_Sans_KR({
   subsets: ["latin"],
@@ -51,7 +52,10 @@ export default function RootLayout({
   return (
     <html lang="ko" className={`${noto.variable}`} suppressHydrationWarning>
       <head>
-      <meta name="naver-site-verification" content="b897b690310c8080611ac2a9060f654280dfe905" />
+        <meta
+          name="naver-site-verification"
+          content="b897b690310c8080611ac2a9060f654280dfe905"
+        />
       </head>
       <body className="h-screen flex flex-col bg-white dark:bg-black text-black dark:text-white antialiased overflow-hidden">
         <Providers>
