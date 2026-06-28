@@ -100,7 +100,7 @@ export async function POST(
           .update({ total_clicks_since_recalc: 0, last_recalculated_at: new Date().toISOString() })
           .eq("id", 1);
 
-        revalidateTag(PLAYERS_CACHE_TAG);
+        revalidateTag(PLAYERS_CACHE_TAG, "max");
       } else {
         // Just increment click counter
         await supabase
